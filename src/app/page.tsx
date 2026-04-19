@@ -70,6 +70,8 @@ export default function Home() {
   const [productStockMin, setProductStockMin] = useState("0");
 
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [selectedQuantity, setSelectedQuantity] = useState("1");
   const [selectedSalePrice, setSelectedSalePrice] = useState("");
   const [saleClientId, setSaleClientId] = useState("");
@@ -92,6 +94,17 @@ export default function Home() {
     const quantity = Number(selectedQuantity) || 1;
     setSelectedSalePrice(String(Number(selectedProduct.sale_price) * quantity));
   }, [products, selectedProductId, selectedQuantity]);
+
+  useEffect(() => {
+    if (!selectedProductId) setProductSearch("");
+  }, [selectedProductId]);
+
+  const filteredActiveProducts = useMemo(() => {
+    const active = products.filter((p) => p.is_active);
+    const sorted = active.sort((a, b) => a.name.localeCompare(b.name, "es"));
+    if (!productSearch) return sorted;
+    return sorted.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()));
+  }, [products, productSearch]);
 
   const selectedUnitSalePrice = useMemo(() => {
     const quantity = Number(selectedQuantity);
@@ -1332,49 +1345,40 @@ export default function Home() {
                 <h2 className="text-sm font-medium">{editingSaleId ? "Editar venta" : "Cargar venta del día"}</h2>
 
                 <div className="mt-3 grid gap-3">
-                  <label className="grid gap-1 text-sm">
-                    Cliente cargado (opcional)
-                    <select
-                      value={saleClientId}
-                      onChange={(event) => setSaleClientId(event.target.value)}
-                      className="h-10 rounded-md border border-zinc-300 px-3"
-                    >
-                      <option value="">Sin cliente</option>
-                      {clients.map((client) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="grid gap-1 text-sm">
-                    O escribir cliente nuevo
-                    <input
-                      className="h-10 rounded-md border border-zinc-300 px-3"
-                      value={newClientName}
-                      onChange={(event) => setNewClientName(event.target.value)}
-                      placeholder="Ej: Juan Pérez"
-                    />
-                  </label>
-
-                  <label className="grid gap-1 text-sm">
+                  <div className="grid gap-1 text-sm">
                     Producto
-                    <select
-                      value={selectedProductId}
-                      onChange={(event) => setSelectedProductId(event.target.value)}
-                      className="h-10 rounded-md border border-zinc-300 px-3"
-                    >
-                      <option value="">Seleccionar...</option>
-                      {products
-                        .filter((product) => product.is_active)
-                        .map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name} · Stock {formatQuantity(Number(product.stock))} · sugerido x litro {formatCurrency(Number(product.sale_price))}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                    <div className="relative">
+                      <input
+                        className="h-10 w-full rounded-md border border-zinc-300 px-3"
+                        value={productSearch}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value);
+                          setProductDropdownOpen(true);
+                          if (!e.target.value) setSelectedProductId("");
+                        }}
+                        onFocus={() => setProductDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setProductDropdownOpen(false), 150)}
+                        placeholder="Buscar producto..."
+                      />
+                      {productDropdownOpen && filteredActiveProducts.length > 0 && (
+                        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-300 bg-white shadow-lg">
+                          {filteredActiveProducts.map((product) => (
+                            <li
+                              key={product.id}
+                              className="cursor-pointer px-3 py-2 text-sm hover:bg-zinc-100"
+                              onMouseDown={() => {
+                                setSelectedProductId(product.id);
+                                setProductSearch(product.name);
+                                setProductDropdownOpen(false);
+                              }}
+                            >
+                              {product.name} · Stock {formatQuantity(Number(product.stock))} · sugerido x litro {formatCurrency(Number(product.sale_price))}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
 
                   <label className="grid gap-1 text-sm">
                     Cantidad
@@ -1440,15 +1444,43 @@ export default function Home() {
                   ))}
                 </div>
 
-                <label className="mt-3 grid gap-1 text-sm">
-                  Nota (opcional)
-                  <input
-                    className="h-10 rounded-md border border-zinc-300 px-3"
-                    value={saleNote}
-                    onChange={(event) => setSaleNote(event.target.value)}
-                    placeholder="Ej: entrega barrio centro"
-                  />
-                </label>
+                <div className="mt-3 grid gap-3">
+                  <label className="grid gap-1 text-sm">
+                    Cliente (opcional)
+                    <select
+                      value={saleClientId}
+                      onChange={(event) => setSaleClientId(event.target.value)}
+                      className="h-10 rounded-md border border-zinc-300 px-3"
+                    >
+                      <option value="">Sin cliente</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid gap-1 text-sm">
+                    O escribir cliente nuevo
+                    <input
+                      className="h-10 rounded-md border border-zinc-300 px-3"
+                      value={newClientName}
+                      onChange={(event) => setNewClientName(event.target.value)}
+                      placeholder="Ej: Juan Pérez"
+                    />
+                  </label>
+
+                  <label className="grid gap-1 text-sm">
+                    Nota (opcional)
+                    <input
+                      className="h-10 rounded-md border border-zinc-300 px-3"
+                      value={saleNote}
+                      onChange={(event) => setSaleNote(event.target.value)}
+                      placeholder="Ej: entrega barrio centro"
+                    />
+                  </label>
+                </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-sm">
