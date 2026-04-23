@@ -68,6 +68,7 @@ export default function Home() {
   const [productSalePrice, setProductSalePrice] = useState("");
   const [productStock, setProductStock] = useState("");
   const [productStockMin, setProductStockMin] = useState("0");
+  const [productListSearch, setProductListSearch] = useState("");
 
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -105,6 +106,16 @@ export default function Home() {
     if (!productSearch) return sorted;
     return sorted.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()));
   }, [products, productSearch]);
+
+  const filteredProductsList = useMemo(() => {
+    const normalizedSearch = productListSearch.trim().toLowerCase();
+    const sorted = [...products].sort((a, b) =>
+      a.name.localeCompare(b.name, "es", { sensitivity: "base" })
+    );
+
+    if (!normalizedSearch) return sorted;
+    return sorted.filter((product) => product.name.toLowerCase().includes(normalizedSearch));
+  }, [products, productListSearch]);
 
   const selectedUnitSalePrice = useMemo(() => {
     const quantity = Number(selectedQuantity);
@@ -1676,7 +1687,15 @@ export default function Home() {
             </form>
 
             <div className="rounded-xl border border-zinc-300 bg-white p-4">
-              <h2 className="text-sm font-medium">Listado</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-medium">Listado</h2>
+                <input
+                  className="h-10 w-full max-w-xs rounded-md border border-zinc-300 px-3"
+                  placeholder="Buscar producto"
+                  value={productListSearch}
+                  onChange={(event) => setProductListSearch(event.target.value)}
+                />
+              </div>
               <div className="mt-3 overflow-auto">
                 <table className="w-full min-w-[760px] text-sm">
                   <thead>
@@ -1692,7 +1711,14 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((product) => {
+                    {filteredProductsList.length === 0 && (
+                      <tr>
+                        <td className="py-4 text-zinc-500" colSpan={8}>
+                          No se encontraron productos.
+                        </td>
+                      </tr>
+                    )}
+                    {filteredProductsList.map((product) => {
                       const margin = Number(product.sale_price) - Number(product.cost_price);
                       return (
                         <tr key={product.id} className="border-b border-zinc-100">
