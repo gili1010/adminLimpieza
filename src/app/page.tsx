@@ -82,7 +82,7 @@ export default function Home() {
   const [productCost, setProductCost] = useState("");
   const [productSalePrice, setProductSalePrice] = useState("");
   const [productStock, setProductStock] = useState("");
-  const [productStockMin, setProductStockMin] = useState("0");
+  const [productStockMin, setProductStockMin] = useState("");
   const [productListSearch, setProductListSearch] = useState("");
 
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -359,7 +359,7 @@ export default function Home() {
     setProductCost("");
     setProductSalePrice("");
     setProductStock("");
-    setProductStockMin("0");
+    setProductStockMin("");
     await loadData(session.user.id);
   };
 
