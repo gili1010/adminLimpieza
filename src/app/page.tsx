@@ -1039,31 +1039,36 @@ export default function Home() {
 
   if (!session) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-100 p-6 text-zinc-900">
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-6">
         <form
           onSubmit={signInOrRegister}
-          className="w-full max-w-md rounded-2xl border border-zinc-300 bg-white p-6"
+          className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl"
         >
-          <h1 className="text-2xl font-semibold">Admin de Limpieza</h1>
-          <p className="mt-1 text-sm text-zinc-600">
-            Ingresá con tu cuenta para cargar ventas y ver ganancias.
-          </p>
+          <div className="mb-7 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white shadow">
+              A
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">Admin de Negocio</h1>
+              <p className="text-xs text-slate-500">Gestioná tu negocio desde un solo lugar</p>
+            </div>
+          </div>
 
-          <div className="mt-5 grid gap-3">
-            <label className="grid gap-1 text-sm">
+          <div className="grid gap-4">
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
               Email
               <input
-                className="h-10 rounded-md border border-zinc-300 px-3"
+                className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
               Contraseña
               <input
-                className="h-10 rounded-md border border-zinc-300 px-3"
+                className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -1072,14 +1077,21 @@ export default function Home() {
             </label>
           </div>
 
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </p>
+          )}
 
-          <button className="mt-5 h-10 w-full rounded-md bg-zinc-900 text-white" type="submit">
+          <button
+            className="mt-6 h-11 w-full rounded-lg bg-indigo-600 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            type="submit"
+          >
             {isRegister ? "Crear usuario" : "Ingresar"}
           </button>
 
           <button
-            className="mt-2 h-10 w-full rounded-md border border-zinc-300"
+            className="mt-2 h-10 w-full rounded-lg border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50"
             type="button"
             onClick={() => {
               setError(null);
@@ -1094,85 +1106,103 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 text-zinc-900 sm:p-6">
-      <div className="mx-auto max-w-6xl space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-300 bg-white p-4">
-          <div>
-            <h1 className="text-xl font-semibold">Admin de Negocio</h1>
-            <p className="text-sm text-zinc-600">{session.user.email}</p>
+    <main className="min-h-screen bg-slate-50 p-4 text-slate-900 sm:p-6">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
+              A
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-slate-900">Admin de Negocio</h1>
+              <p className="text-xs text-slate-400">{session.user.email}</p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setActiveView("dashboard")}
-              className={`h-9 rounded-md px-3 text-sm ${
-                activeView === "dashboard" ? "bg-zinc-900 text-white" : "border border-zinc-300"
+              className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
+                activeView === "dashboard"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Dashboard
             </button>
             <button
               onClick={() => setActiveView("ventas")}
-              className={`h-9 rounded-md px-3 text-sm ${
-                activeView === "ventas" ? "bg-zinc-900 text-white" : "border border-zinc-300"
+              className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
+                activeView === "ventas"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Ventas
             </button>
             <button
               onClick={() => setActiveView("productos")}
-              className={`h-9 rounded-md px-3 text-sm ${
-                activeView === "productos" ? "bg-zinc-900 text-white" : "border border-zinc-300"
+              className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
+                activeView === "productos"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Productos
             </button>
             <button
               onClick={() => setActiveView("clientes")}
-              className={`h-9 rounded-md px-3 text-sm ${
-                activeView === "clientes" ? "bg-zinc-900 text-white" : "border border-zinc-300"
+              className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
+                activeView === "clientes"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Clientes
             </button>
-            <button onClick={signOut} className="h-9 rounded-md border border-zinc-300 px-3 text-sm">
+            <div className="ml-1 h-5 w-px bg-slate-200" />
+            <button
+              onClick={signOut}
+              className="h-9 rounded-lg border border-slate-200 px-4 text-sm text-slate-600 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+            >
               Salir
             </button>
           </div>
         </header>
 
-        {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        {pageLoading && <p className="text-sm text-zinc-600">Actualizando datos...</p>}
+        {error && (
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+            <span className="mt-0.5 text-red-500">⚠</span>
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+        {pageLoading && (
+          <div className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+            <p className="text-sm text-indigo-700">Actualizando datos...</p>
+          </div>
+        )}
 
         {activeView === "dashboard" && (
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-zinc-700">Rango:</span>
-              <button
-                className={`h-8 rounded-md px-3 text-sm ${
-                  range === "day" ? "bg-zinc-900 text-white" : "border border-zinc-300"
-                }`}
-                onClick={() => applyDashboardPreset("day")}
-              >
-                Hoy
-              </button>
-              <button
-                className={`h-8 rounded-md px-3 text-sm ${
-                  range === "week" ? "bg-zinc-900 text-white" : "border border-zinc-300"
-                }`}
-                onClick={() => applyDashboardPreset("week")}
-              >
-                Semana
-              </button>
-              <button
-                className={`h-8 rounded-md px-3 text-sm ${
-                  range === "month" ? "bg-zinc-900 text-white" : "border border-zinc-300"
-                }`}
-                onClick={() => applyDashboardPreset("month")}
-              >
-                Mes
-              </button>
-              <div className="ml-auto grid gap-2 sm:grid-cols-3">
-                <label className="grid gap-1 text-sm">
+          <section className="space-y-5">
+            <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Rango</span>
+                {(["day", "week", "month"] as const).map((r) => (
+                  <button
+                    key={r}
+                    className={`h-8 rounded-lg px-3 text-sm font-medium transition ${
+                      range === r
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => applyDashboardPreset(r)}
+                  >
+                    {r === "day" ? "Hoy" : r === "week" ? "Semana" : "Mes"}
+                  </button>
+                ))}
+              </div>
+              <div className="ml-auto flex flex-wrap items-end gap-3">
+                <label className="grid gap-1 text-xs font-medium text-slate-500">
                   Desde
                   <input
                     type="date"
@@ -1181,10 +1211,10 @@ export default function Home() {
                       setRange("custom");
                       setDashboardStartDate(event.target.value);
                     }}
-                    className="h-8 rounded-md border border-zinc-300 px-3"
+                    className="h-8 rounded-lg border border-slate-300 px-3 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   />
                 </label>
-                <label className="grid gap-1 text-sm">
+                <label className="grid gap-1 text-xs font-medium text-slate-500">
                   Hasta
                   <input
                     type="date"
@@ -1193,12 +1223,12 @@ export default function Home() {
                       setRange("custom");
                       setDashboardEndDate(event.target.value);
                     }}
-                    className="h-8 rounded-md border border-zinc-300 px-3"
+                    className="h-8 rounded-lg border border-slate-300 px-3 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   />
                 </label>
                 <button
                   onClick={() => applyDashboardPreset("month")}
-                  className="h-8 self-end rounded-md border border-zinc-300 px-3 text-sm"
+                  className="h-8 rounded-lg border border-slate-200 px-3 text-sm text-slate-600 transition hover:bg-slate-50"
                 >
                   Restablecer
                 </button>
@@ -1206,79 +1236,107 @@ export default function Home() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <p className="text-xs text-zinc-500">Ingresos</p>
-                <p className="mt-1 text-lg font-semibold">{formatCurrency(totals.totalAmount)}</p>
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">Ingresos</p>
+                  <span className="text-lg text-blue-400">💰</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-blue-700">{formatCurrency(totals.totalAmount)}</p>
               </div>
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <p className="text-xs text-zinc-500">Costo</p>
-                <p className="mt-1 text-lg font-semibold">{formatCurrency(totals.totalCost)}</p>
+              <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Costo</p>
+                  <span className="text-lg text-amber-400">📦</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-amber-700">{formatCurrency(totals.totalCost)}</p>
               </div>
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <p className="text-xs text-zinc-500">Ganancia</p>
-                <p className="mt-1 text-lg font-semibold">{formatCurrency(totals.totalProfit)}</p>
+              <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">Ganancia</p>
+                  <span className="text-lg text-emerald-400">📈</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-emerald-700">{formatCurrency(totals.totalProfit)}</p>
               </div>
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <p className="text-xs text-zinc-500">Ventas</p>
-                <p className="mt-1 text-lg font-semibold">{totals.count}</p>
+              <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-violet-500">Ventas</p>
+                  <span className="text-lg text-violet-400">🛒</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-violet-700">{totals.count}</p>
               </div>
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <p className="text-xs text-zinc-500">Ticket promedio</p>
-                <p className="mt-1 text-lg font-semibold">{formatCurrency(totals.ticketAverage)}</p>
+              <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-500">Ticket promedio</p>
+                  <span className="text-lg text-sky-400">🎯</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-sky-700">{formatCurrency(totals.ticketAverage)}</p>
               </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">Mejor día del período</h2>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🏆</span>
+                  <h2 className="text-sm font-bold text-amber-700">Mejor día del período</h2>
+                </div>
                 {bestSalesDay ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <p className="text-xs text-zinc-500">Fecha</p>
-                      <p className="text-sm font-medium">{bestSalesDay.label}</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl bg-white p-3 shadow-sm">
+                      <p className="text-xs font-medium text-slate-400">Fecha</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{bestSalesDay.label}</p>
                     </div>
-                    <div>
-                      <p className="text-xs text-zinc-500">Ventas</p>
-                      <p className="text-sm font-medium">{formatCurrency(bestSalesDay.total)}</p>
+                    <div className="rounded-xl bg-white p-3 shadow-sm">
+                      <p className="text-xs font-medium text-slate-400">Ventas</p>
+                      <p className="mt-1 text-sm font-bold text-blue-700">{formatCurrency(bestSalesDay.total)}</p>
                     </div>
-                    <div>
-                      <p className="text-xs text-zinc-500">Ganancia</p>
-                      <p className="text-sm font-medium text-green-700">{formatCurrency(bestSalesDay.profit)}</p>
+                    <div className="rounded-xl bg-white p-3 shadow-sm">
+                      <p className="text-xs font-medium text-slate-400">Ganancia</p>
+                      <p className="mt-1 text-sm font-bold text-emerald-700">{formatCurrency(bestSalesDay.profit)}</p>
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-zinc-500">Todavía no hay ventas en este período.</p>
+                  <p className="mt-4 text-sm text-amber-600">Todavía no hay ventas en este período.</p>
                 )}
               </div>
 
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-medium">Alertas de stock bajo</h2>
-                  <span className="text-xs text-zinc-500">Según el mínimo definido por producto</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">⚠️</span>
+                    <h2 className="text-sm font-bold text-slate-700">Alertas de stock bajo</h2>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Mínimo por producto</span>
                 </div>
                 <div className="mt-3 space-y-2">
                   {lowStockProducts.length === 0 && (
-                    <p className="text-sm text-zinc-500">No hay productos con stock bajo.</p>
+                    <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5">
+                      <span className="text-emerald-500">✓</span>
+                      <p className="text-sm text-emerald-700">Todos los productos tienen stock suficiente.</p>
+                    </div>
                   )}
                   {lowStockProducts.slice(0, 6).map((product) => (
                     <div
                       key={product.id}
-                      className="flex items-center justify-between rounded-md border border-zinc-200 px-3 py-2"
+                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 ${
+                        Number(product.stock) <= 0
+                          ? "border border-red-200 bg-red-50"
+                          : "border border-amber-200 bg-amber-50"
+                      }`}
                     >
                       <div>
-                        <p className="text-sm font-medium">{product.name}</p>
-                        <p className="text-xs text-zinc-500">
-                          Mínimo {formatQuantity(Number(product.stock_min))} · sugerido {formatCurrency(Number(product.sale_price))}
+                        <p className="text-sm font-semibold text-slate-800">{product.name}</p>
+                        <p className="text-xs text-slate-500">
+                          Mínimo {formatQuantity(Number(product.stock_min))} · precio {formatCurrency(Number(product.sale_price))}
                         </p>
                       </div>
                       <span
-                        className={`rounded-full px-2 py-1 text-xs ${
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${
                           Number(product.stock) <= 0
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
+                            ? "bg-red-600 text-white"
+                            : "bg-amber-500 text-white"
                         }`}
                       >
-                        Stock {formatQuantity(Number(product.stock))}
+                        {Number(product.stock) <= 0 ? "Sin stock" : `Stock ${formatQuantity(Number(product.stock))}`}
                       </span>
                     </div>
                   ))}
@@ -1286,43 +1344,52 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-zinc-300 bg-white p-4">
-              <h2 className="text-sm font-medium">Evolución del período</h2>
-              <div className="mt-3 h-72 w-full">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📊</span>
+                <h2 className="text-sm font-bold text-slate-700">Evolución del período</h2>
+              </div>
+              <div className="mt-4 h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="ingreso" fill="#27272a" name="Ingresos" />
-                    <Bar dataKey="ganancia" fill="#16a34a" name="Ganancia" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.07)" }}
+                      formatter={(value) => [typeof value === "number" ? formatCurrency(value) : String(value)]}
+                    />
+                    <Bar dataKey="ingreso" fill="#6366f1" name="Ingresos" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="ganancia" fill="#10b981" name="Ganancia" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="rounded-xl border border-zinc-300 bg-white p-4">
-              <h2 className="text-sm font-medium">Últimas ventas</h2>
-              <div className="mt-3 overflow-auto">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗓️</span>
+                <h2 className="text-sm font-bold text-slate-700">Últimas ventas</h2>
+              </div>
+              <div className="mt-4 overflow-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-200 text-left">
-                      <th className="py-2">Fecha</th>
-                      <th className="py-2">Importe</th>
-                      <th className="py-2">Costo</th>
-                      <th className="py-2">Ganancia</th>
-                      <th className="py-2">Nota</th>
+                    <tr className="bg-slate-50 text-left">
+                      <th className="rounded-l-lg py-2.5 pl-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Fecha</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Importe</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Costo</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Ganancia</th>
+                      <th className="rounded-r-lg py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Nota</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sales.slice(0, 12).map((sale) => (
-                      <tr key={sale.id} className="border-b border-zinc-100">
-                        <td className="py-2">{format(parseISO(sale.sold_at), "dd/MM/yyyy HH:mm")}</td>
-                        <td className="py-2">{formatCurrency(Number(sale.total_amount))}</td>
-                        <td className="py-2">{formatCurrency(Number(sale.total_cost))}</td>
-                        <td className="py-2">{formatCurrency(Number(sale.total_profit))}</td>
-                        <td className="py-2">{sale.note ?? "-"}</td>
+                      <tr key={sale.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                        <td className="py-2.5 pl-3 text-slate-600">{format(parseISO(sale.sold_at), "dd/MM/yyyy HH:mm")}</td>
+                        <td className="py-2.5 font-medium text-blue-700">{formatCurrency(Number(sale.total_amount))}</td>
+                        <td className="py-2.5 text-amber-700">{formatCurrency(Number(sale.total_cost))}</td>
+                        <td className="py-2.5 font-semibold text-emerald-700">{formatCurrency(Number(sale.total_profit))}</td>
+                        <td className="py-2.5 pr-3 text-slate-500">{sale.note ?? "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1331,65 +1398,73 @@ export default function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">Más vendidos</h2>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🌟</span>
+                  <h2 className="text-sm font-bold text-slate-700">Más vendidos</h2>
+                </div>
                 <div className="mt-3 space-y-2">
                   {rankingData.mostSold.length === 0 && (
-                    <p className="text-sm text-zinc-500">Sin datos para este período.</p>
+                    <p className="text-sm text-slate-400">Sin datos para este período.</p>
                   )}
                   {rankingData.mostSold.map((item, index) => (
-                    <div key={`${item.productId}-sold`} className="rounded-md border border-zinc-200 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          {index + 1}. {item.name}
-                        </p>
-                        <span className="text-sm font-semibold">{formatQuantity(item.quantity)}</span>
+                    <div key={`${item.productId}-sold`} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                      <span className={`text-base font-bold ${
+                        index === 0 ? "text-amber-400" : index === 1 ? "text-slate-400" : index === 2 ? "text-amber-700" : "text-slate-300"
+                      }`}>{index + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                        <p className="text-xs text-slate-400">Ingresó {formatCurrency(item.revenue)}</p>
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500">Ingresó {formatCurrency(item.revenue)}</p>
+                      <span className="rounded-lg bg-violet-100 px-2 py-1 text-xs font-bold text-violet-700">{formatQuantity(item.quantity)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">Mayor ganancia</h2>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">💵</span>
+                  <h2 className="text-sm font-bold text-slate-700">Mayor ganancia</h2>
+                </div>
                 <div className="mt-3 space-y-2">
                   {rankingData.highestProfit.length === 0 && (
-                    <p className="text-sm text-zinc-500">Sin datos para este período.</p>
+                    <p className="text-sm text-slate-400">Sin datos para este período.</p>
                   )}
                   {rankingData.highestProfit.map((item, index) => (
-                    <div key={`${item.productId}-profit`} className="rounded-md border border-zinc-200 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          {index + 1}. {item.name}
-                        </p>
-                        <span className="text-sm font-semibold text-green-700">
-                          {formatCurrency(item.profit)}
-                        </span>
+                    <div key={`${item.productId}-profit`} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                      <span className={`text-base font-bold ${
+                        index === 0 ? "text-amber-400" : index === 1 ? "text-slate-400" : index === 2 ? "text-amber-700" : "text-slate-300"
+                      }`}>{index + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                        <p className="text-xs text-slate-400">Cant. {formatQuantity(item.quantity)}</p>
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500">Cantidad vendida {formatQuantity(item.quantity)}</p>
+                      <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">{formatCurrency(item.profit)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">Menor margen</h2>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📌</span>
+                  <h2 className="text-sm font-bold text-slate-700">Menor margen</h2>
+                </div>
                 <div className="mt-3 space-y-2">
                   {rankingData.lowestMargin.length === 0 && (
-                    <p className="text-sm text-zinc-500">Sin datos para este período.</p>
+                    <p className="text-sm text-slate-400">Sin datos para este período.</p>
                   )}
                   {rankingData.lowestMargin.map((item, index) => (
-                    <div key={`${item.productId}-margin`} className="rounded-md border border-zinc-200 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          {index + 1}. {item.name}
-                        </p>
-                        <span className="text-sm font-semibold">
-                          {formatCurrency(item.unitMargin)} / litro
-                        </span>
+                    <div key={`${item.productId}-margin`} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                      <span className={`text-base font-bold ${
+                        index === 0 ? "text-red-500" : index === 1 ? "text-orange-400" : "text-amber-400"
+                      }`}>{index + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                        <p className="text-xs text-slate-400">Gan. total {formatCurrency(item.profit)}</p>
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500">Ganancia total {formatCurrency(item.profit)}</p>
+                      <span className="rounded-lg bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">{formatCurrency(item.unitMargin)} / u.</span>
                     </div>
                   ))}
                 </div>
@@ -1399,34 +1474,38 @@ export default function Home() {
         )}
 
         {activeView === "ventas" && (
-          <section className="space-y-4">
+          <section className="space-y-5">
             {editingSaleId && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">✏️</span>
                   <div>
-                    <p className="font-medium">Estás editando una venta existente.</p>
-                    <p>Modificá los productos y luego guardá para actualizarla.</p>
+                    <p className="text-sm font-bold text-amber-800">Editando una venta existente</p>
+                    <p className="text-xs text-amber-600">Modificá los productos y guardá para actualizar.</p>
                   </div>
-                  <button
-                    onClick={resetSaleEditor}
-                    className="rounded-md border border-amber-400 px-3 py-2 text-xs"
-                  >
-                    Cancelar edición
-                  </button>
                 </div>
+                <button
+                  onClick={resetSaleEditor}
+                  className="h-9 rounded-lg border border-amber-400 bg-white px-4 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
+                >
+                  Cancelar edición
+                </button>
               </div>
             )}
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">{editingSaleId ? "Editar venta" : "Cargar venta del día"}</h2>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{editingSaleId ? "✏️" : "➕"}</span>
+                  <h2 className="text-sm font-bold text-slate-700">{editingSaleId ? "Editar venta" : "Cargar venta del día"}</h2>
+                </div>
 
-                <div className="mt-3 grid gap-3">
-                  <div className="grid gap-1 text-sm">
-                    Producto
+                <div className="mt-4 grid gap-3">
+                  <div className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">Producto</span>
                     <div className="relative">
                       <input
-                        className="h-10 w-full rounded-md border border-zinc-300 px-3"
+                        className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         value={productSearch}
                         onChange={(e) => {
                           setProductSearch(e.target.value);
@@ -1438,18 +1517,19 @@ export default function Home() {
                         placeholder="Buscar producto..."
                       />
                       {productDropdownOpen && filteredActiveProducts.length > 0 && (
-                        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-300 bg-white shadow-lg">
+                        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
                           {filteredActiveProducts.map((product) => (
                             <li
                               key={product.id}
-                              className="cursor-pointer px-3 py-2 text-sm hover:bg-zinc-100"
+                              className="cursor-pointer px-3 py-2.5 text-sm transition hover:bg-indigo-50 hover:text-indigo-700"
                               onMouseDown={() => {
                                 setSelectedProductId(product.id);
                                 setProductSearch(product.name);
                                 setProductDropdownOpen(false);
                               }}
                             >
-                              {product.name} · Stock {formatQuantity(Number(product.stock))} · sugerido x litro {formatCurrency(Number(product.sale_price))}
+                              <span className="font-medium">{product.name}</span>
+                              <span className="ml-2 text-xs text-slate-400">Stock {formatQuantity(Number(product.stock))} · {formatCurrency(Number(product.sale_price))} / u.</span>
                             </li>
                           ))}
                         </ul>
@@ -1457,63 +1537,80 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <label className="grid gap-1 text-sm">
-                    Cantidad
-                    <input
-                      className="h-10 rounded-md border border-zinc-300 px-3"
-                      type="number"
-                      min={0.001}
-                      step="0.001"
-                      value={selectedQuantity}
-                      onChange={(event) => setSelectedQuantity(event.target.value)}
-                    />
-                  </label>
-
-                  <label className="grid gap-1 text-sm">
-                    Precio total de venta
-                    <input
-                      className="h-10 rounded-md border border-zinc-300 px-3"
-                      type="number"
-                      min={0.01}
-                      step="0.01"
-                      value={selectedSalePrice}
-                      onChange={(event) => setSelectedSalePrice(event.target.value)}
-                      placeholder="Ej: total por los 5 litros"
-                    />
-                  </label>
-
-                  <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-                    {selectedUnitSalePrice !== null
-                      ? `Precio por litro calculado: ${formatCurrency(selectedUnitSalePrice)}`
-                      : "Ingresá cantidad y precio total para calcular el precio por litro."}
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="grid gap-1.5 text-sm">
+                      <span className="font-medium text-slate-600">Cantidad</span>
+                      <input
+                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        type="number"
+                        min={0.001}
+                        step="0.001"
+                        value={selectedQuantity}
+                        onChange={(event) => setSelectedQuantity(event.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm">
+                      <span className="font-medium text-slate-600">Precio total de venta</span>
+                      <input
+                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        type="number"
+                        min={0.01}
+                        step="0.01"
+                        value={selectedSalePrice}
+                        onChange={(event) => setSelectedSalePrice(event.target.value)}
+                        placeholder="Total por los litros"
+                      />
+                    </label>
                   </div>
 
-                  <button onClick={addItemToCart} className="h-10 rounded-md bg-zinc-900 text-white">
-                    Agregar al carrito
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${
+                    selectedUnitSalePrice !== null
+                      ? "border-indigo-100 bg-indigo-50 text-indigo-700"
+                      : "border-slate-200 bg-slate-50 text-slate-400"
+                  }`}>
+                    {selectedUnitSalePrice !== null
+                      ? <><span className="font-semibold">Precio por litro: </span>{formatCurrency(selectedUnitSalePrice)}</>
+                      : "Ingresá cantidad y precio total para calcular."}
+                  </div>
+
+                  <button
+                    onClick={addItemToCart}
+                    className="h-10 rounded-lg bg-indigo-600 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    + Agregar al carrito
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-zinc-300 bg-white p-4">
-                <h2 className="text-sm font-medium">Carrito</h2>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🛒</span>
+                  <h2 className="text-sm font-bold text-slate-700">Carrito</h2>
+                  {cart.length > 0 && (
+                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-600">{cart.length}</span>
+                  )}
+                </div>
 
                 <div className="mt-3 space-y-2">
-                  {cart.length === 0 && <p className="text-sm text-zinc-500">No hay productos agregados.</p>}
-
+                  {cart.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center">
+                      <p className="text-sm text-slate-400">No hay productos en el carrito.</p>
+                    </div>
+                  )}
                   {cart.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between rounded-md border border-zinc-200 p-2"
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
                     >
                       <div>
-                        <p className="text-sm font-medium">{item.product_name}</p>
-                        <p className="text-xs text-zinc-500">
-                          {formatQuantity(item.quantity)} litros · {formatCurrency(item.quantity * item.unit_sale_price)} total · {formatCurrency(item.unit_sale_price)} por litro · costo {formatCurrency(item.quantity * item.unit_cost_price)}
+                        <p className="text-sm font-semibold text-slate-800">{item.product_name}</p>
+                        <p className="text-xs text-slate-400">
+                          {formatQuantity(item.quantity)} u. · {formatCurrency(item.quantity * item.unit_sale_price)} total · costo {formatCurrency(item.quantity * item.unit_cost_price)}
                         </p>
                       </div>
                       <button
                         onClick={() => removeCartItem(item.id)}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+                        className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
                       >
                         Quitar
                       </button>
@@ -1521,13 +1618,13 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="mt-3 grid gap-3">
-                  <label className="grid gap-1 text-sm">
-                    Cliente (opcional)
+                <div className="mt-4 grid gap-3">
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">Cliente (opcional)</span>
                     <select
                       value={saleClientId}
                       onChange={(event) => setSaleClientId(event.target.value)}
-                      className="h-10 rounded-md border border-zinc-300 px-3"
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                     >
                       <option value="">Sin cliente</option>
                       {clients.map((client) => (
@@ -1538,20 +1635,20 @@ export default function Home() {
                     </select>
                   </label>
 
-                  <label className="grid gap-1 text-sm">
-                    O escribir cliente nuevo
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">O escribir cliente nuevo</span>
                     <input
-                      className="h-10 rounded-md border border-zinc-300 px-3"
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                       value={newClientName}
                       onChange={(event) => setNewClientName(event.target.value)}
                       placeholder="Ej: Juan Pérez"
                     />
                   </label>
 
-                  <label className="grid gap-1 text-sm">
-                    Nota (opcional)
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">Nota (opcional)</span>
                     <input
-                      className="h-10 rounded-md border border-zinc-300 px-3"
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                       value={saleNote}
                       onChange={(event) => setSaleNote(event.target.value)}
                       placeholder="Ej: entrega barrio centro"
@@ -1559,12 +1656,16 @@ export default function Home() {
                   </label>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-sm">
-                    Total: <strong>{formatCurrency(cartTotal)}</strong>
-                  </p>
-                  <button onClick={confirmSale} className="h-10 rounded-md bg-green-600 px-4 text-white">
-                    {editingSaleId ? "Actualizar venta" : "Guardar venta"}
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
+                  <div>
+                    <p className="text-xs text-slate-400">Total del carrito</p>
+                    <p className="text-xl font-bold text-slate-900">{formatCurrency(cartTotal)}</p>
+                  </div>
+                  <button
+                    onClick={confirmSale}
+                    className="h-11 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white transition hover:bg-emerald-700"
+                  >
+                    {editingSaleId ? "✓ Actualizar venta" : "✓ Guardar venta"}
                   </button>
                 </div>
               </div>
@@ -1705,19 +1806,22 @@ export default function Home() {
         )}
 
         {activeView === "productos" && (
-          <section className="space-y-4">
-            <form onSubmit={addProduct} className="rounded-xl border border-zinc-300 bg-white p-4">
-              <h2 className="text-sm font-medium">Nuevo producto</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="space-y-5">
+            <form onSubmit={addProduct} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">➕</span>
+                <h2 className="text-sm font-bold text-slate-700">Nuevo producto</h2>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <input
-                  className="h-10 rounded-md border border-zinc-300 px-3"
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Nombre"
                   value={productName}
                   onChange={(event) => setProductName(event.target.value)}
                   required
                 />
                 <input
-                  className="h-10 rounded-md border border-zinc-300 px-3"
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Costo"
                   type="number"
                   step="0.01"
@@ -1727,7 +1831,7 @@ export default function Home() {
                   required
                 />
                 <input
-                  className="h-10 rounded-md border border-zinc-300 px-3"
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Precio venta"
                   type="number"
                   step="0.01"
@@ -1737,7 +1841,7 @@ export default function Home() {
                   required
                 />
                 <input
-                  className="h-10 rounded-md border border-zinc-300 px-3"
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Stock"
                   type="number"
                   step="0.001"
@@ -1747,7 +1851,7 @@ export default function Home() {
                   required
                 />
                 <input
-                  className="h-10 rounded-md border border-zinc-300 px-3"
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Stock mínimo"
                   type="number"
                   step="0.001"
@@ -1757,66 +1861,86 @@ export default function Home() {
                   required
                 />
               </div>
-
-              <button type="submit" className="mt-3 h-10 rounded-md bg-zinc-900 px-4 text-white">
-                Guardar producto
+              <button type="submit" className="mt-4 h-10 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                + Guardar producto
               </button>
             </form>
 
-            <div className="rounded-xl border border-zinc-300 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-sm font-medium">Listado</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📦</span>
+                  <h2 className="text-sm font-bold text-slate-700">Listado</h2>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{filteredProductsList.length}</span>
+                </div>
                 <input
-                  className="h-10 w-full max-w-xs rounded-md border border-zinc-300 px-3"
+                  className="h-9 w-full max-w-xs rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   placeholder="Buscar producto"
                   value={productListSearch}
                   onChange={(event) => setProductListSearch(event.target.value)}
                 />
               </div>
-              <div className="mt-3 overflow-auto">
+              <div className="mt-4 overflow-auto">
                 <table className="w-full min-w-[760px] text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-200 text-left">
-                      <th className="py-2">Producto</th>
-                      <th className="py-2">Costo</th>
-                      <th className="py-2">Precio</th>
-                      <th className="py-2">Margen unitario</th>
-                      <th className="py-2">Stock</th>
-                      <th className="py-2">Stock mínimo</th>
-                      <th className="py-2">Estado</th>
-                      <th className="py-2">Acciones</th>
+                    <tr className="bg-slate-50 text-left">
+                      <th className="rounded-l-lg py-2.5 pl-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Producto</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Costo</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Margen</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Stock</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Mínimo</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
+                      <th className="rounded-r-lg py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredProductsList.length === 0 && (
                       <tr>
-                        <td className="py-4 text-zinc-500" colSpan={8}>
+                        <td className="py-4 text-slate-400" colSpan={8}>
                           No se encontraron productos.
                         </td>
                       </tr>
                     )}
                     {filteredProductsList.map((product) => {
                       const margin = Number(product.sale_price) - Number(product.cost_price);
+                      const isLowStock = Number(product.stock_min) > 0 && Number(product.stock) <= Number(product.stock_min);
                       return (
-                        <tr key={product.id} className="border-b border-zinc-100">
-                          <td className="py-2">{product.name}</td>
-                          <td className="py-2">{formatCurrency(Number(product.cost_price))}</td>
-                          <td className="py-2">{formatCurrency(Number(product.sale_price))}</td>
-                          <td className="py-2">{formatCurrency(margin)}</td>
-                          <td className="py-2">{formatQuantity(Number(product.stock))}</td>
-                          <td className="py-2">{formatQuantity(Number(product.stock_min))}</td>
-                          <td className="py-2">{product.is_active ? "Activo" : "Inactivo"}</td>
-                          <td className="py-2">
+                        <tr key={product.id} className={`border-b border-slate-100 transition hover:bg-slate-50 ${
+                          !product.is_active ? "opacity-50" : ""
+                        }`}>
+                          <td className="py-2.5 pl-3 font-semibold text-slate-800">{product.name}</td>
+                          <td className="py-2.5 text-amber-700">{formatCurrency(Number(product.cost_price))}</td>
+                          <td className="py-2.5 text-blue-700">{formatCurrency(Number(product.sale_price))}</td>
+                          <td className="py-2.5 font-semibold text-emerald-700">{formatCurrency(margin)}</td>
+                          <td className={`py-2.5 font-semibold ${
+                            isLowStock ? "text-red-600" : "text-slate-700"
+                          }`}>{formatQuantity(Number(product.stock))}</td>
+                          <td className="py-2.5 text-slate-500">{formatQuantity(Number(product.stock_min))}</td>
+                          <td className="py-2.5">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              product.is_active
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}>
+                              {product.is_active ? "Activo" : "Inactivo"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-3">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => quickEditProduct(product)}
-                                className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
                               >
                                 Editar
                               </button>
                               <button
                                 onClick={() => toggleProductActive(product)}
-                                className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+                                className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                                  product.is_active
+                                    ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                    : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
                               >
                                 {product.is_active ? "Desactivar" : "Activar"}
                               </button>
@@ -1833,39 +1957,44 @@ export default function Home() {
         )}
 
         {activeView === "clientes" && (
-          <section className="space-y-4">
-            <div className="rounded-xl border border-zinc-300 bg-white p-4">
-              <h2 className="text-sm font-medium">Clientes cargados en ventas</h2>
-              <p className="mt-1 text-xs text-zinc-500">
-                Solo aparecen los clientes que alguna vez fueron asociados a una venta.
+          <section className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👥</span>
+                <h2 className="text-sm font-bold text-slate-700">Clientes</h2>
+              </div>
+              <p className="ml-8 mt-0.5 text-xs text-slate-400">
+                Solo aparecen clientes asociados a alguna venta.
               </p>
 
               <div className="mt-4 overflow-auto">
                 <table className="w-full min-w-[760px] text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-200 text-left">
-                      <th className="py-2">Cliente</th>
-                      <th className="py-2">Compras</th>
-                      <th className="py-2">Total comprado</th>
-                      <th className="py-2">Ganancia generada</th>
-                      <th className="py-2">Última compra</th>
+                    <tr className="bg-slate-50 text-left">
+                      <th className="rounded-l-lg py-2.5 pl-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Cliente</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Compras</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Total comprado</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Ganancia generada</th>
+                      <th className="rounded-r-lg py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Última compra</th>
                     </tr>
                   </thead>
                   <tbody>
                     {clientSummary.length === 0 && (
                       <tr>
-                        <td className="py-4 text-zinc-500" colSpan={5}>
+                        <td className="py-8 text-center text-slate-400" colSpan={5}>
                           Todavía no hay clientes asociados a ventas.
                         </td>
                       </tr>
                     )}
                     {clientSummary.map((client) => (
-                      <tr key={client.id} className="border-b border-zinc-100">
-                        <td className="py-2">{client.name}</td>
-                        <td className="py-2">{client.purchases}</td>
-                        <td className="py-2">{formatCurrency(client.totalAmount)}</td>
-                        <td className="py-2">{formatCurrency(client.totalProfit)}</td>
-                        <td className="py-2">{format(parseISO(client.lastPurchase), "dd/MM/yyyy HH:mm")}</td>
+                      <tr key={client.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                        <td className="py-2.5 pl-3 font-semibold text-slate-800">{client.name}</td>
+                        <td className="py-2.5">
+                          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">{client.purchases}</span>
+                        </td>
+                        <td className="py-2.5 font-semibold text-blue-700">{formatCurrency(client.totalAmount)}</td>
+                        <td className="py-2.5 font-semibold text-emerald-700">{formatCurrency(client.totalProfit)}</td>
+                        <td className="py-2.5 pr-3 text-slate-500">{format(parseISO(client.lastPurchase), "dd/MM/yyyy HH:mm")}</td>
                       </tr>
                     ))}
                   </tbody>
