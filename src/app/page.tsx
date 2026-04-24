@@ -12,9 +12,7 @@ import {
 } from "recharts";
 import {
   format,
-  isAfter,
   parseISO,
-  startOfDay,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
@@ -23,7 +21,22 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CartItem, Client, Product, Sale, SaleItem } from "@/lib/types";
 
 type View = "dashboard" | "ventas" | "productos" | "clientes";
-type Range = "day" | "week" | "month";
+type Range = "day" | "week" | "month" | "custom";
+
+const getPresetRangeDates = (selectedRange: Exclude<Range, "custom">) => {
+  const now = new Date();
+  const startDate =
+    selectedRange === "day"
+      ? now
+      : selectedRange === "week"
+        ? startOfWeek(now, { weekStartsOn: 1 })
+        : startOfMonth(now);
+
+  return {
+    start: format(startDate, "yyyy-MM-dd"),
+    end: format(now, "yyyy-MM-dd"),
+  };
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("es-AR", {
@@ -52,6 +65,8 @@ export default function Home() {
   const [pageLoading, setPageLoading] = useState(false);
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [range, setRange] = useState<Range>("day");
+  const [dashboardStartDate, setDashboardStartDate] = useState(() => getPresetRangeDates("day").start);
+  const [dashboardEndDate, setDashboardEndDate] = useState(() => getPresetRangeDates("day").end);
   const [error, setError] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
@@ -84,6 +99,7 @@ export default function Home() {
     format(startOfMonth(new Date()), "yyyy-MM-dd")
   );
   const [historyEndDate, setHistoryEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [expandedSaleIds, setExpandedSaleIds] = useState<string[]>([]);
 
   useEffect(() => {
     const selectedProduct = products.find((product) => product.id === selectedProductId);
@@ -471,6 +487,14 @@ export default function Home() {
     setCart((previous) => previous.filter((item) => item.id !== cartItemId));
   };
 
+  const toggleSaleExpanded = (saleId: string) => {
+    setExpandedSaleIds((previous) =>
+      previous.includes(saleId)
+        ? previous.filter((currentId) => currentId !== saleId)
+        : [...previous, saleId]
+    );
+  };
+
   const resolveClientId = useCallback(async () => {
     if (!supabase || !session) return saleClientId || null;
 
@@ -786,20 +810,30 @@ export default function Home() {
     await loadData(session.user.id);
   };
 
-  const filteredSales = useMemo(() => {
-    const now = new Date();
-    const periodStart =
-      range === "day"
-        ? startOfDay(now)
-        : range === "week"
-          ? startOfWeek(now, { weekStartsOn: 1 })
-          : startOfMonth(now);
+  const applyDashboardPreset = (selectedRange: Exclude<Range, "custom">) => {
+    const nextDates = getPresetRangeDates(selectedRange);
+    setRange(selectedRange);
+    setDashboardStartDate(nextDates.start);
+    setDashboardEndDate(nextDates.end);
+  };
 
+  const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
-      const soldAt = parseISO(sale.sold_at);
-      return isAfter(soldAt, periodStart) || soldAt.getTime() === periodStart.getTime();
+      const saleDate = format(parseISO(sale.sold_at), "yyyy-MM-dd");
+      const effectiveStartDate =
+        dashboardStartDate && dashboardEndDate && dashboardStartDate > dashboardEndDate
+          ? dashboardEndDate
+          : dashboardStartDate;
+      const effectiveEndDate =
+        dashboardStartDate && dashboardEndDate && dashboardStartDate > dashboardEndDate
+          ? dashboardStartDate
+          : dashboardEndDate;
+
+      if (effectiveStartDate && saleDate < effectiveStartDate) return false;
+      if (effectiveEndDate && saleDate > effectiveEndDate) return false;
+      return true;
     });
-  }, [range, sales]);
+  }, [dashboardEndDate, dashboardStartDate, sales]);
 
   const totals = useMemo(() => {
     const totalAmount = filteredSales.reduce(
@@ -1117,7 +1151,7 @@ export default function Home() {
                 className={`h-8 rounded-md px-3 text-sm ${
                   range === "day" ? "bg-zinc-900 text-white" : "border border-zinc-300"
                 }`}
-                onClick={() => setRange("day")}
+                onClick={() => applyDashboardPreset("day")}
               >
                 Hoy
               </button>
@@ -1125,7 +1159,7 @@ export default function Home() {
                 className={`h-8 rounded-md px-3 text-sm ${
                   range === "week" ? "bg-zinc-900 text-white" : "border border-zinc-300"
                 }`}
-                onClick={() => setRange("week")}
+                onClick={() => applyDashboardPreset("week")}
               >
                 Semana
               </button>
@@ -1133,10 +1167,42 @@ export default function Home() {
                 className={`h-8 rounded-md px-3 text-sm ${
                   range === "month" ? "bg-zinc-900 text-white" : "border border-zinc-300"
                 }`}
-                onClick={() => setRange("month")}
+                onClick={() => applyDashboardPreset("month")}
               >
                 Mes
               </button>
+              <div className="ml-auto grid gap-2 sm:grid-cols-3">
+                <label className="grid gap-1 text-sm">
+                  Desde
+                  <input
+                    type="date"
+                    value={dashboardStartDate}
+                    onChange={(event) => {
+                      setRange("custom");
+                      setDashboardStartDate(event.target.value);
+                    }}
+                    className="h-8 rounded-md border border-zinc-300 px-3"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  Hasta
+                  <input
+                    type="date"
+                    value={dashboardEndDate}
+                    onChange={(event) => {
+                      setRange("custom");
+                      setDashboardEndDate(event.target.value);
+                    }}
+                    className="h-8 rounded-md border border-zinc-300 px-3"
+                  />
+                </label>
+                <button
+                  onClick={() => applyDashboardPreset("month")}
+                  className="h-8 self-end rounded-md border border-zinc-300 px-3 text-sm"
+                >
+                  Restablecer
+                </button>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -1508,9 +1574,9 @@ export default function Home() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-medium">Historial de ventas</h2>
-                  <p className="text-xs text-zinc-500">Buscá por fecha y revisá el detalle completo de cada venta.</p>
+                  <p className="text-xs text-zinc-500">Buscá por fecha y desplegá el detalle solo cuando lo necesites.</p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="flex flex-wrap items-end gap-3">
                   <label className="grid gap-1 text-sm">
                     Desde
                     <input
@@ -1529,15 +1595,17 @@ export default function Home() {
                       className="h-10 rounded-md border border-zinc-300 px-3"
                     />
                   </label>
-                  <button
-                    onClick={() => {
-                      setHistoryStartDate("");
-                      setHistoryEndDate("");
-                    }}
-                    className="h-10 rounded-md border border-zinc-300 px-3 text-sm"
-                  >
-                    Limpiar filtros
-                  </button>
+                  <div className="flex h-10 items-end">
+                    <button
+                      onClick={() => {
+                        setHistoryStartDate("");
+                        setHistoryEndDate("");
+                      }}
+                      className="h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                    >
+                      Limpiar filtros
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1548,21 +1616,22 @@ export default function Home() {
 
                 {filteredSalesHistory.map((sale) => {
                   const items = saleItemsBySaleId.get(sale.id) ?? [];
+                  const isExpanded = expandedSaleIds.includes(sale.id);
 
                   return (
                     <div key={sale.id} className="rounded-xl border border-zinc-200 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-medium">
+                        <div className="min-w-[220px] flex-1">
+                          <p className="text-base font-medium">
                             Venta del {format(parseISO(sale.sold_at), "dd/MM/yyyy HH:mm")}
                           </p>
-                          <p className="text-xs text-zinc-500">
+                          <p className="text-sm text-zinc-500">
                             Cliente: {sale.client_id ? (clientsById.get(sale.client_id)?.name ?? "Cliente") : "Sin cliente"}
                           </p>
-                          <p className="text-xs text-zinc-500">{sale.note ?? "Sin nota"}</p>
+                          <p className="text-sm text-zinc-500">{sale.note ?? "Sin nota"}</p>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid min-w-[240px] gap-3 sm:grid-cols-3">
                           <div>
                             <p className="text-xs text-zinc-500">Total</p>
                             <p className="text-sm font-medium">{formatCurrency(Number(sale.total_amount))}</p>
@@ -1577,7 +1646,13 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => toggleSaleExpanded(sale.id)}
+                            className="rounded-md border border-zinc-300 px-3 py-2 text-xs"
+                          >
+                            {isExpanded ? "Ocultar detalle" : `Ver detalle (${items.length})`}
+                          </button>
                           <button
                             onClick={() => startEditingSale(sale)}
                             className="rounded-md border border-zinc-300 px-3 py-2 text-xs"
@@ -1593,32 +1668,34 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="mt-3 overflow-auto">
-                        <table className="w-full min-w-[760px] text-sm">
-                          <thead>
-                            <tr className="border-b border-zinc-200 text-left">
-                              <th className="py-2">Producto</th>
-                              <th className="py-2">Litros</th>
-                              <th className="py-2">Precio total</th>
-                              <th className="py-2">Costo</th>
-                              <th className="py-2">Ganancia</th>
-                              <th className="py-2">Precio x litro</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {items.map((item) => (
-                              <tr key={item.id} className="border-b border-zinc-100">
-                                <td className="py-2">{productsById.get(item.product_id)?.name ?? "Producto"}</td>
-                                <td className="py-2">{formatQuantity(Number(item.quantity))}</td>
-                                <td className="py-2">{formatCurrency(Number(item.line_total))}</td>
-                                <td className="py-2">{formatCurrency(Number(item.line_cost))}</td>
-                                <td className="py-2">{formatCurrency(Number(item.line_profit))}</td>
-                                <td className="py-2">{formatCurrency(Number(item.unit_sale_price))}</td>
+                      {isExpanded && (
+                        <div className="mt-4 overflow-auto border-t border-zinc-200 pt-4">
+                          <table className="w-full min-w-[760px] text-sm">
+                            <thead>
+                              <tr className="border-b border-zinc-200 text-left">
+                                <th className="py-2">Producto</th>
+                                <th className="py-2">Litros</th>
+                                <th className="py-2">Precio total</th>
+                                <th className="py-2">Costo</th>
+                                <th className="py-2">Ganancia</th>
+                                <th className="py-2">Precio x litro</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {items.map((item) => (
+                                <tr key={item.id} className="border-b border-zinc-100">
+                                  <td className="py-2">{productsById.get(item.product_id)?.name ?? "Producto"}</td>
+                                  <td className="py-2">{formatQuantity(Number(item.quantity))}</td>
+                                  <td className="py-2">{formatCurrency(Number(item.line_total))}</td>
+                                  <td className="py-2">{formatCurrency(Number(item.line_cost))}</td>
+                                  <td className="py-2">{formatCurrency(Number(item.line_profit))}</td>
+                                  <td className="py-2">{formatCurrency(Number(item.unit_sale_price))}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
