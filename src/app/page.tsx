@@ -17,6 +17,8 @@ import {
   startOfWeek,
 } from "date-fns";
 import type { Session } from "@supabase/supabase-js";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CartItem, Client, Product, Sale, SaleItem } from "@/lib/types";
 
@@ -100,6 +102,7 @@ export default function Home() {
   );
   const [historyEndDate, setHistoryEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [expandedSaleIds, setExpandedSaleIds] = useState<string[]>([]);
+  const [isExportingProductsPdf, setIsExportingProductsPdf] = useState(false);
 
   useEffect(() => {
     const selectedProduct = products.find((product) => product.id === selectedProductId);
@@ -132,6 +135,12 @@ export default function Home() {
     if (!normalizedSearch) return sorted;
     return sorted.filter((product) => product.name.toLowerCase().includes(normalizedSearch));
   }, [products, productListSearch]);
+
+  const inStockProductsForPdf = useMemo(() => {
+    return [...products]
+      .filter((product) => Number(product.stock) > 0)
+      .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+  }, [products]);
 
   const selectedUnitSalePrice = useMemo(() => {
     const quantity = Number(selectedQuantity);
@@ -817,6 +826,40 @@ export default function Home() {
     setDashboardEndDate(nextDates.end);
   };
 
+  const downloadProductsPdf = useCallback(() => {
+    if (inStockProductsForPdf.length === 0) {
+      setError("No hay productos con stock para descargar.");
+      return;
+    }
+
+    setIsExportingProductsPdf(true);
+    try {
+      const doc = new jsPDF();
+      const now = new Date();
+
+      doc.setFontSize(14);
+      doc.text("Listado de productos con stock", 14, 16);
+      doc.setFontSize(10);
+      doc.text(`Generado: ${format(now, "dd/MM/yyyy HH:mm")}`, 14, 22);
+
+      autoTable(doc, {
+        startY: 28,
+        head: [["Producto", "Precio de venta"]],
+        body: inStockProductsForPdf.map((product) => [
+          product.name,
+          formatCurrency(Number(product.sale_price)),
+        ]),
+        styles: { fontSize: 10, cellPadding: 2.5 },
+        headStyles: { fillColor: [79, 70, 229] },
+      });
+
+      doc.save(`productos-con-stock-${format(now, "yyyyMMdd-HHmm")}.pdf`);
+      setError(null);
+    } finally {
+      setIsExportingProductsPdf(false);
+    }
+  }, [inStockProductsForPdf]);
+
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
       const saleDate = format(parseISO(sale.sold_at), "yyyy-MM-dd");
@@ -952,6 +995,18 @@ export default function Home() {
         (product) => product.is_active && Number(product.stock_min) > 0 && Number(product.stock) <= Number(product.stock_min)
       )
       .sort((a, b) => Number(a.stock) - Number(b.stock));
+  }, [products]);
+
+  const inventoryValueTotals = useMemo(() => {
+    return products.reduce(
+      (accumulator, product) => {
+        const stock = Math.max(0, Number(product.stock));
+        accumulator.cost += stock * Number(product.cost_price);
+        accumulator.sale += stock * Number(product.sale_price);
+        return accumulator;
+      },
+      { cost: 0, sale: 0 }
+    );
   }, [products]);
 
   const bestSalesDay = useMemo(() => {
@@ -1807,6 +1862,17 @@ export default function Home() {
 
         {activeView === "productos" && (
           <section className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Mercaderia a costo</p>
+                <p className="mt-2 text-2xl font-bold text-amber-700">{formatCurrency(inventoryValueTotals.cost)}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">Mercaderia a precio de venta</p>
+                <p className="mt-2 text-2xl font-bold text-blue-700">{formatCurrency(inventoryValueTotals.sale)}</p>
+              </div>
+            </div>
+
             <form onSubmit={addProduct} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xl">➕</span>
@@ -1868,10 +1934,18 @@ export default function Home() {
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xl">📦</span>
                   <h2 className="text-sm font-bold text-slate-700">Listado</h2>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{filteredProductsList.length}</span>
+                  <button
+                    type="button"
+                    onClick={downloadProductsPdf}
+                    disabled={isExportingProductsPdf || inStockProductsForPdf.length === 0}
+                    className="ml-2 h-8 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {isExportingProductsPdf ? "Descargando..." : "Descargar"}
+                  </button>
                 </div>
                 <input
                   className="h-9 w-full max-w-xs rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
