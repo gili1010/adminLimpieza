@@ -20,7 +20,7 @@ import type { Session } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { CartItem, Client, Product, Sale, SaleItem } from "@/lib/types";
+import type { CartItem, Client, Combo, ComboItem, Product, Sale, SaleItem } from "@/lib/types";
 
 type View = "dashboard" | "ventas" | "productos" | "clientes";
 type Range = "day" | "week" | "month" | "custom";
@@ -53,6 +53,8 @@ const formatQuantity = (value: number) =>
     maximumFractionDigits: 3,
   }).format(value);
 
+const roundToTwo = (value: number) => Math.round(value * 100) / 100;
+
 export default function Home() {
   const supabase = useMemo(() => {
     try {
@@ -76,6 +78,8 @@ export default function Home() {
   const [isRegister, setIsRegister] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [combos, setCombos] = useState<Combo[]>([]);
+  const [comboItems, setComboItems] = useState<ComboItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
@@ -87,11 +91,24 @@ export default function Home() {
   const [productStockMin, setProductStockMin] = useState("");
   const [productListSearch, setProductListSearch] = useState("");
 
+  const [comboName, setComboName] = useState("");
+  const [comboSalePrice, setComboSalePrice] = useState("");
+  const [comboProductId, setComboProductId] = useState("");
+  const [comboProductQuantity, setComboProductQuantity] = useState("1");
+  const [comboDraftItems, setComboDraftItems] = useState<Array<{ product_id: string; quantity: number }>>([]);
+  const [comboListSearch, setComboListSearch] = useState("");
+  const [editingComboId, setEditingComboId] = useState<string | null>(null);
+
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [selectedQuantity, setSelectedQuantity] = useState("1");
   const [selectedSalePrice, setSelectedSalePrice] = useState("");
+  const [selectedComboId, setSelectedComboId] = useState("");
+  const [comboSearch, setComboSearch] = useState("");
+  const [comboDropdownOpen, setComboDropdownOpen] = useState(false);
+  const [selectedComboQuantity, setSelectedComboQuantity] = useState("1");
+  const [selectedComboSalePrice, setSelectedComboSalePrice] = useState("");
   const [saleClientId, setSaleClientId] = useState("");
   const [newClientName, setNewClientName] = useState("");
   const [saleNote, setSaleNote] = useState("");
@@ -119,12 +136,34 @@ export default function Home() {
     if (!selectedProductId) setProductSearch("");
   }, [selectedProductId]);
 
+  useEffect(() => {
+    const selectedCombo = combos.find((combo) => combo.id === selectedComboId);
+    if (!selectedCombo) {
+      setSelectedComboSalePrice("");
+      return;
+    }
+
+    const quantity = Number(selectedComboQuantity) || 1;
+    setSelectedComboSalePrice(String(Number(selectedCombo.sale_price) * quantity));
+  }, [combos, selectedComboId, selectedComboQuantity]);
+
+  useEffect(() => {
+    if (!selectedComboId) setComboSearch("");
+  }, [selectedComboId]);
+
   const filteredActiveProducts = useMemo(() => {
     const active = products.filter((p) => p.is_active);
     const sorted = active.sort((a, b) => a.name.localeCompare(b.name, "es"));
     if (!productSearch) return sorted;
     return sorted.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()));
   }, [products, productSearch]);
+
+  const filteredActiveCombos = useMemo(() => {
+    const active = combos.filter((combo) => combo.is_active);
+    const sorted = active.sort((a, b) => a.name.localeCompare(b.name, "es"));
+    if (!comboSearch) return sorted;
+    return sorted.filter((combo) => combo.name.toLowerCase().includes(comboSearch.toLowerCase()));
+  }, [combos, comboSearch]);
 
   const filteredProductsList = useMemo(() => {
     const normalizedSearch = productListSearch.trim().toLowerCase();
@@ -135,6 +174,16 @@ export default function Home() {
     if (!normalizedSearch) return sorted;
     return sorted.filter((product) => product.name.toLowerCase().includes(normalizedSearch));
   }, [products, productListSearch]);
+
+  const filteredCombosList = useMemo(() => {
+    const normalizedSearch = comboListSearch.trim().toLowerCase();
+    const sorted = [...combos].sort((a, b) =>
+      a.name.localeCompare(b.name, "es", { sensitivity: "base" })
+    );
+
+    if (!normalizedSearch) return sorted;
+    return sorted.filter((combo) => combo.name.toLowerCase().includes(normalizedSearch));
+  }, [combos, comboListSearch]);
 
   const inStockProductsForPdf = useMemo(() => {
     return [...products]
@@ -172,6 +221,16 @@ export default function Home() {
     return map;
   }, [saleItems]);
 
+  const comboItemsByComboId = useMemo(() => {
+    const map = new Map<string, ComboItem[]>();
+    comboItems.forEach((item) => {
+      const existing = map.get(item.combo_id) ?? [];
+      existing.push(item);
+      map.set(item.combo_id, existing);
+    });
+    return map;
+  }, [comboItems]);
+
   const editingSaleBaseQuantities = useMemo(() => {
     const map = new Map<string, number>();
     if (!editingSaleId) return map;
@@ -188,9 +247,14 @@ export default function Home() {
     setPageLoading(true);
     setError(null);
 
-    const [productsQuery, clientsQuery, salesQuery] = await Promise.all([
+    const [productsQuery, combosQuery, clientsQuery, salesQuery] = await Promise.all([
       supabase
         .from("products")
+        .select("*")
+        .eq("owner_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("combos")
         .select("*")
         .eq("owner_id", userId)
         .order("created_at", { ascending: false }),
@@ -211,6 +275,40 @@ export default function Home() {
       setError(productsQuery.error.message);
     } else {
       setProducts(productsQuery.data as Product[]);
+    }
+
+    if (combosQuery.error) {
+      if (combosQuery.error.message.includes("Could not find the table 'public.combos'")) {
+        setCombos([]);
+        setComboItems([]);
+        setError(
+          "Falta aplicar la migración de combos en Supabase. Ejecutá el schema.sql actualizado y refrescá."
+        );
+      } else {
+        setError(combosQuery.error.message);
+      }
+    } else {
+      const nextCombos = combosQuery.data as Combo[];
+      setCombos(nextCombos);
+
+      if (nextCombos.length > 0) {
+        const { data: comboItemsData, error: comboItemsError } = await supabase
+          .from("combo_items")
+          .select("*")
+          .in(
+            "combo_id",
+            nextCombos.map((combo) => combo.id)
+          )
+          .order("created_at", { ascending: true });
+
+        if (comboItemsError) {
+          setError(comboItemsError.message);
+        } else {
+          setComboItems(comboItemsData as ComboItem[]);
+        }
+      } else {
+        setComboItems([]);
+      }
     }
 
     if (clientsQuery.error) {
@@ -289,6 +387,8 @@ export default function Home() {
       loadData(sessionUserId);
     } else {
       setProducts([]);
+      setCombos([]);
+      setComboItems([]);
       setClients([]);
       setSales([]);
       setSaleItems([]);
@@ -425,6 +525,308 @@ export default function Home() {
     await loadData(session.user.id);
   };
 
+  const addComboDraftItem = () => {
+    const quantity = Number(comboProductQuantity);
+    if (!comboProductId) {
+      setError("Elegí un producto para el combo.");
+      return;
+    }
+    if (Number.isNaN(quantity) || quantity <= 0) {
+      setError("La cantidad del combo debe ser mayor a 0.");
+      return;
+    }
+
+    setComboDraftItems((previous) => {
+      const existing = previous.find((item) => item.product_id === comboProductId);
+      if (!existing) {
+        return [...previous, { product_id: comboProductId, quantity }];
+      }
+
+      return previous.map((item) =>
+        item.product_id === comboProductId
+          ? { ...item, quantity: item.quantity + quantity }
+          : item
+      );
+    });
+
+    setComboProductId("");
+    setComboProductQuantity("1");
+    setError(null);
+  };
+
+  const removeComboDraftItem = (productId: string) => {
+    setComboDraftItems((previous) => previous.filter((item) => item.product_id !== productId));
+  };
+
+  const resetComboEditor = () => {
+    setComboName("");
+    setComboSalePrice("");
+    setComboProductId("");
+    setComboProductQuantity("1");
+    setComboDraftItems([]);
+    setEditingComboId(null);
+  };
+
+  const startEditingCombo = (combo: Combo) => {
+    const items = comboItemsByComboId.get(combo.id) ?? [];
+    setComboName(combo.name);
+    setComboSalePrice(String(combo.sale_price));
+    setComboDraftItems(
+      items.map((item) => ({
+        product_id: item.product_id,
+        quantity: Number(item.quantity),
+      }))
+    );
+    setComboProductId("");
+    setComboProductQuantity("1");
+    setEditingComboId(combo.id);
+    setError(null);
+  };
+
+  const addCombo = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!supabase || !session) return;
+
+    const price = Number(comboSalePrice);
+    if (!comboName.trim() || Number.isNaN(price) || price <= 0) {
+      setError("Completá nombre y precio del combo válidos.");
+      return;
+    }
+
+    if (comboDraftItems.length === 0) {
+      setError("Agregá al menos un producto al combo.");
+      return;
+    }
+
+    if (editingComboId) {
+      const previousItems = comboItemsByComboId.get(editingComboId) ?? [];
+
+      const { error: comboUpdateError } = await supabase
+        .from("combos")
+        .update({
+          name: comboName.trim(),
+          sale_price: price,
+        })
+        .eq("id", editingComboId)
+        .eq("owner_id", session.user.id);
+
+      if (comboUpdateError) {
+        setError(comboUpdateError.message);
+        return;
+      }
+
+      const { error: deleteItemsError } = await supabase
+        .from("combo_items")
+        .delete()
+        .eq("combo_id", editingComboId);
+
+      if (deleteItemsError) {
+        setError(deleteItemsError.message);
+        return;
+      }
+
+      const { error: insertEditedItemsError } = await supabase.from("combo_items").insert(
+        comboDraftItems.map((item) => ({
+          combo_id: editingComboId,
+          product_id: item.product_id,
+          quantity: item.quantity,
+        }))
+      );
+
+      if (insertEditedItemsError) {
+        setError(insertEditedItemsError.message);
+
+        if (previousItems.length > 0) {
+          await supabase.from("combo_items").insert(
+            previousItems.map((item) => ({
+              combo_id: editingComboId,
+              product_id: item.product_id,
+              quantity: Number(item.quantity),
+            }))
+          );
+        }
+        return;
+      }
+
+      resetComboEditor();
+      await loadData(session.user.id);
+      return;
+    }
+
+    const { data: insertedCombo, error: comboInsertError } = await supabase
+      .from("combos")
+      .insert({
+        owner_id: session.user.id,
+        name: comboName.trim(),
+        sale_price: price,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    if (comboInsertError || !insertedCombo) {
+      setError(comboInsertError?.message ?? "No se pudo crear el combo.");
+      return;
+    }
+
+    const { error: comboItemsInsertError } = await supabase.from("combo_items").insert(
+      comboDraftItems.map((item) => ({
+        combo_id: insertedCombo.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+      }))
+    );
+
+    if (comboItemsInsertError) {
+      setError(comboItemsInsertError.message);
+      await supabase.from("combos").delete().eq("id", insertedCombo.id).eq("owner_id", session.user.id);
+      return;
+    }
+
+    resetComboEditor();
+    await loadData(session.user.id);
+  };
+
+  const toggleComboActive = async (combo: Combo) => {
+    if (!supabase || !session) return;
+
+    const { error: updateError } = await supabase
+      .from("combos")
+      .update({ is_active: !combo.is_active })
+      .eq("id", combo.id)
+      .eq("owner_id", session.user.id);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    await loadData(session.user.id);
+  };
+
+  const getReservedStockForProduct = (productId: string) => {
+    return cart
+      .filter((item) => item.product_id === productId)
+      .reduce((accumulator, item) => accumulator + item.quantity, 0);
+  };
+
+  const buildComboCartItems = (
+    combo: Combo,
+    comboQuantity: number,
+    comboTotalSalePrice: number
+  ): CartItem[] | null => {
+    const items = comboItemsByComboId.get(combo.id) ?? [];
+
+    if (items.length === 0) {
+      setError("El combo no tiene productos cargados.");
+      return null;
+    }
+
+    const expanded = items.map((comboItem) => {
+      const product = productsById.get(comboItem.product_id);
+      return {
+        comboItem,
+        product,
+        quantity: Number(comboItem.quantity) * comboQuantity,
+      };
+    });
+
+    const missingProduct = expanded.find((entry) => !entry.product);
+    if (missingProduct) {
+      setError("Hay productos del combo que ya no existen.");
+      return null;
+    }
+
+    for (const entry of expanded) {
+      const product = entry.product as Product;
+      const reservedStock = getReservedStockForProduct(product.id);
+      const editingStockCredit = editingSaleBaseQuantities.get(product.id) ?? 0;
+      const availableStock = Number(product.stock) + editingStockCredit - reservedStock;
+      if (entry.quantity > availableStock) {
+        setError(`No hay stock suficiente para ${product.name} en el combo.`);
+        return null;
+      }
+    }
+
+    const regularTotal = expanded.reduce(
+      (accumulator, entry) => accumulator + Number((entry.product as Product).sale_price) * entry.quantity,
+      0
+    );
+
+    const comboTotalInCents = Math.round(comboTotalSalePrice * 100);
+    const weighted = expanded.map((entry, index) => {
+      const baseWeight =
+        regularTotal > 0
+          ? (Number((entry.product as Product).sale_price) * entry.quantity) / regularTotal
+          : 1 / expanded.length;
+      const exactCents = comboTotalInCents * baseWeight;
+      const floorCents = Math.floor(exactCents);
+      return {
+        index,
+        floorCents,
+        fraction: exactCents - floorCents,
+      };
+    });
+
+    const assignedCents = weighted.reduce((accumulator, line) => accumulator + line.floorCents, 0);
+    const remainder = comboTotalInCents - assignedCents;
+    const sortedByFraction = [...weighted].sort((a, b) => b.fraction - a.fraction);
+
+    for (let i = 0; i < remainder; i += 1) {
+      const target = sortedByFraction[i % sortedByFraction.length];
+      const current = weighted.find((line) => line.index === target.index);
+      if (current) current.floorCents += 1;
+    }
+
+    return expanded.map((entry, index) => {
+      const product = entry.product as Product;
+      const lineCents = weighted.find((line) => line.index === index)?.floorCents ?? 0;
+      const lineTotal = lineCents / 100;
+      return {
+        id: `${combo.id}-${product.id}-${Date.now()}-${index}`,
+        product_id: product.id,
+        product_name: product.name,
+        quantity: entry.quantity,
+        unit_sale_price: roundToTwo(lineTotal / entry.quantity),
+        unit_cost_price: Number(product.cost_price),
+        line_total: lineTotal,
+        source_type: "combo",
+        source_name: combo.name,
+      };
+    });
+  };
+
+  const addComboToCart = () => {
+    const selectedCombo = combos.find((combo) => combo.id === selectedComboId);
+    const quantity = Number(selectedComboQuantity);
+    const totalSalePrice = Number(selectedComboSalePrice);
+
+    if (!selectedCombo) {
+      setError("Elegí un combo.");
+      return;
+    }
+
+    if (Number.isNaN(quantity) || quantity <= 0) {
+      setError("La cantidad de combos debe ser mayor a 0.");
+      return;
+    }
+
+    if (Number.isNaN(totalSalePrice) || totalSalePrice <= 0) {
+      setError("Ingresá un precio total válido para el combo.");
+      return;
+    }
+
+    const comboCartItems = buildComboCartItems(selectedCombo, quantity, totalSalePrice);
+    if (!comboCartItems) return;
+
+    setCart((previous) => [...previous, ...comboCartItems]);
+    setSelectedComboId("");
+    setComboSearch("");
+    setSelectedComboQuantity("1");
+    setSelectedComboSalePrice("");
+    setError(null);
+  };
+
   const addItemToCart = () => {
     const selectedProduct = products.find((product) => product.id === selectedProductId);
     const quantity = Number(selectedQuantity);
@@ -447,9 +849,7 @@ export default function Home() {
 
     const unitSalePrice = totalSalePrice / quantity;
 
-    const reservedStock = cart
-      .filter((item) => item.product_id === selectedProduct.id)
-      .reduce((accumulator, item) => accumulator + item.quantity, 0);
+    const reservedStock = getReservedStockForProduct(selectedProduct.id);
     const editingStockCredit = editingSaleBaseQuantities.get(selectedProduct.id) ?? 0;
     const availableStock = Number(selectedProduct.stock) + editingStockCredit - reservedStock;
 
@@ -469,7 +869,11 @@ export default function Home() {
       if (existing) {
         return previous.map((item) =>
           item.id === existing.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? {
+                ...item,
+                quantity: item.quantity + quantity,
+                line_total: roundToTwo(item.line_total + totalSalePrice),
+              }
             : item
         );
       }
@@ -481,8 +885,11 @@ export default function Home() {
           product_id: selectedProduct.id,
           product_name: selectedProduct.name,
           quantity,
-          unit_sale_price: unitSalePrice,
+          unit_sale_price: roundToTwo(unitSalePrice),
           unit_cost_price: Number(selectedProduct.cost_price),
+          line_total: roundToTwo(totalSalePrice),
+          source_type: "product",
+          source_name: null,
         },
       ];
     });
@@ -543,6 +950,10 @@ export default function Home() {
     setSelectedProductId("");
     setSelectedQuantity("1");
     setSelectedSalePrice("");
+    setSelectedComboId("");
+    setComboSearch("");
+    setSelectedComboQuantity("1");
+    setSelectedComboSalePrice("");
     setSaleClientId("");
     setNewClientName("");
     setEditingSaleId(null);
@@ -571,6 +982,9 @@ export default function Home() {
         quantity: Number(item.quantity),
         unit_sale_price: Number(item.unit_sale_price),
         unit_cost_price: Number(item.unit_cost_price),
+        line_total: Number(item.line_total),
+        source_type: "product",
+        source_name: null,
       }))
     );
     setSaleNote(sale.note ?? "");
@@ -581,6 +995,10 @@ export default function Home() {
     setSelectedProductId("");
     setSelectedQuantity("1");
     setSelectedSalePrice("");
+    setSelectedComboId("");
+    setComboSearch("");
+    setSelectedComboQuantity("1");
+    setSelectedComboSalePrice("");
     setError(null);
   };
 
@@ -659,7 +1077,7 @@ export default function Home() {
     }
 
     const totalAmount = cart.reduce(
-      (accumulator, item) => accumulator + item.unit_sale_price * item.quantity,
+      (accumulator, item) => accumulator + item.line_total,
       0
     );
     const totalCost = cart.reduce(
@@ -669,16 +1087,16 @@ export default function Home() {
     const totalProfit = totalAmount - totalCost;
 
     const saleItemsPayload = cart.map((item) => {
-      const lineTotal = item.unit_sale_price * item.quantity;
+      const lineTotal = item.line_total;
       const lineCost = item.unit_cost_price * item.quantity;
       return {
         product_id: item.product_id,
         quantity: item.quantity,
-        unit_sale_price: item.unit_sale_price,
+        unit_sale_price: roundToTwo(item.line_total / item.quantity),
         unit_cost_price: item.unit_cost_price,
         line_total: lineTotal,
         line_cost: lineCost,
-        line_profit: lineTotal - lineCost,
+        line_profit: roundToTwo(lineTotal - lineCost),
       };
     });
 
@@ -924,7 +1342,7 @@ export default function Home() {
   }, [filteredSales]);
 
   const cartTotal = cart.reduce(
-    (accumulator, item) => accumulator + item.unit_sale_price * item.quantity,
+    (accumulator, item) => accumulator + item.line_total,
     0
   );
 
@@ -1634,6 +2052,78 @@ export default function Home() {
                   >
                     + Agregar al carrito
                   </button>
+
+                  <div className="mt-2 border-t border-slate-200 pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Combos</p>
+
+                    <div className="mt-2 grid gap-1.5 text-sm">
+                      <span className="font-medium text-slate-600">Combo</span>
+                      <div className="relative">
+                        <input
+                          className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                          value={comboSearch}
+                          onChange={(e) => {
+                            setComboSearch(e.target.value);
+                            setComboDropdownOpen(true);
+                            if (!e.target.value) setSelectedComboId("");
+                          }}
+                          onFocus={() => setComboDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setComboDropdownOpen(false), 150)}
+                          placeholder="Buscar combo..."
+                        />
+                        {comboDropdownOpen && filteredActiveCombos.length > 0 && (
+                          <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                            {filteredActiveCombos.map((combo) => (
+                              <li
+                                key={combo.id}
+                                className="cursor-pointer px-3 py-2.5 text-sm transition hover:bg-indigo-50 hover:text-indigo-700"
+                                onMouseDown={() => {
+                                  setSelectedComboId(combo.id);
+                                  setComboSearch(combo.name);
+                                  setComboDropdownOpen(false);
+                                }}
+                              >
+                                <span className="font-medium">{combo.name}</span>
+                                <span className="ml-2 text-xs text-slate-400">{formatCurrency(Number(combo.sale_price))}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <label className="grid gap-1.5 text-sm">
+                        <span className="font-medium text-slate-600">Cantidad de combos</span>
+                        <input
+                          className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={selectedComboQuantity}
+                          onChange={(event) => setSelectedComboQuantity(event.target.value)}
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-sm">
+                        <span className="font-medium text-slate-600">Precio total del combo</span>
+                        <input
+                          className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                          type="number"
+                          min={0.01}
+                          step="0.01"
+                          value={selectedComboSalePrice}
+                          onChange={(event) => setSelectedComboSalePrice(event.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    <button
+                      onClick={addComboToCart}
+                      className="mt-3 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white transition hover:bg-violet-700"
+                    >
+                      + Agregar combo al carrito
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1658,9 +2148,16 @@ export default function Home() {
                       className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">{item.product_name}</p>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {item.product_name}
+                          {item.source_type === "combo" && item.source_name && (
+                            <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+                              {item.source_name}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-slate-400">
-                          {formatQuantity(item.quantity)} u. · {formatCurrency(item.quantity * item.unit_sale_price)} total · costo {formatCurrency(item.quantity * item.unit_cost_price)}
+                          {formatQuantity(item.quantity)} u. · {formatCurrency(item.line_total)} total · costo {formatCurrency(item.quantity * item.unit_cost_price)}
                         </p>
                       </div>
                       <button
@@ -1931,6 +2428,189 @@ export default function Home() {
                 + Guardar producto
               </button>
             </form>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <form onSubmit={addCombo} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎁</span>
+                  <h2 className="text-sm font-bold text-slate-700">
+                    {editingComboId ? "Editar combo" : "Nuevo combo"}
+                  </h2>
+                </div>
+
+                {editingComboId && (
+                  <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-medium text-amber-700">Estás editando un combo existente.</p>
+                    <button
+                      type="button"
+                      onClick={resetComboEditor}
+                      className="rounded-md border border-amber-400 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <input
+                    className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Nombre del combo"
+                    value={comboName}
+                    onChange={(event) => setComboName(event.target.value)}
+                    required
+                  />
+                  <input
+                    className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Precio combo"
+                    type="number"
+                    step="0.01"
+                    min={0.01}
+                    value={comboSalePrice}
+                    onChange={(event) => setComboSalePrice(event.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_130px_auto] sm:items-end">
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">Producto del combo</span>
+                    <select
+                      value={comboProductId}
+                      onChange={(event) => setComboProductId(event.target.value)}
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    >
+                      <option value="">Seleccionar</option>
+                      {products
+                        .filter((product) => product.is_active)
+                        .sort((a, b) => a.name.localeCompare(b.name, "es"))
+                        .map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="font-medium text-slate-600">Cantidad</span>
+                    <input
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      type="number"
+                      min={0.001}
+                      step="0.001"
+                      value={comboProductQuantity}
+                      onChange={(event) => setComboProductQuantity(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addComboDraftItem}
+                    className="h-10 rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {comboDraftItems.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+                      Todavía no hay productos en este combo.
+                    </p>
+                  )}
+                  {comboDraftItems.map((draftItem) => {
+                    const product = productsById.get(draftItem.product_id);
+                    return (
+                      <div
+                        key={draftItem.product_id}
+                        className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                      >
+                        <p className="text-sm text-slate-700">
+                          <span className="font-semibold">{product?.name ?? "Producto"}</span>
+                          <span className="ml-2 text-slate-500">x {formatQuantity(draftItem.quantity)}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeComboDraftItem(draftItem.product_id)}
+                          className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button type="submit" className="mt-4 h-10 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-700">
+                  {editingComboId ? "Guardar cambios" : "+ Guardar combo"}
+                </button>
+              </form>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🧩</span>
+                    <h2 className="text-sm font-bold text-slate-700">Combos cargados</h2>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{filteredCombosList.length}</span>
+                  </div>
+                  <input
+                    className="h-9 w-full max-w-xs rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Buscar combo"
+                    value={comboListSearch}
+                    onChange={(event) => setComboListSearch(event.target.value)}
+                  />
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {filteredCombosList.length === 0 && (
+                    <p className="text-sm text-slate-400">No se encontraron combos.</p>
+                  )}
+                  {filteredCombosList.map((combo) => {
+                    const items = comboItemsByComboId.get(combo.id) ?? [];
+                    return (
+                      <div key={combo.id} className={`rounded-xl border px-3 py-3 ${combo.is_active ? "border-slate-200 bg-slate-50" : "border-slate-100 bg-slate-100 opacity-70"}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{combo.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {items.length} productos · {formatCurrency(Number(combo.sale_price))}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditingCombo(combo)}
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleComboActive(combo)}
+                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                                combo.is_active
+                                  ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              }`}
+                            >
+                              {combo.is_active ? "Desactivar" : "Activar"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {items.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {items.map((item) => (
+                              <span key={item.id} className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-600">
+                                {(productsById.get(item.product_id)?.name ?? "Producto")} x {formatQuantity(Number(item.quantity))}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">

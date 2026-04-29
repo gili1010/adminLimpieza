@@ -46,6 +46,23 @@ create table if not exists public.sale_items (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.combos (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  sale_price numeric(12,2) not null check (sale_price >= 0),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.combo_items (
+  id uuid primary key default gen_random_uuid(),
+  combo_id uuid not null references public.combos(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete restrict,
+  quantity numeric(12,3) not null check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+
 -- Ensure client_id exists before creating the index that depends on it
 alter table if exists public.sales
   add column if not exists client_id uuid references public.clients(id) on delete set null;
@@ -56,11 +73,16 @@ create index if not exists idx_sales_owner_sold_at on public.sales(owner_id, sol
 create index if not exists idx_sales_client on public.sales(client_id);
 create index if not exists idx_sale_items_sale on public.sale_items(sale_id);
 create index if not exists idx_sale_items_product on public.sale_items(product_id);
+create index if not exists idx_combos_owner on public.combos(owner_id);
+create index if not exists idx_combo_items_combo on public.combo_items(combo_id);
+create index if not exists idx_combo_items_product on public.combo_items(product_id);
 
 alter table public.products enable row level security;
 alter table public.clients enable row level security;
 alter table public.sales enable row level security;
 alter table public.sale_items enable row level security;
+alter table public.combos enable row level security;
+alter table public.combo_items enable row level security;
 
 drop policy if exists "products_select_own" on public.products;
 drop policy if exists "products_insert_own" on public.products;
@@ -81,6 +103,16 @@ drop policy if exists "sale_items_select_own" on public.sale_items;
 drop policy if exists "sale_items_insert_own" on public.sale_items;
 drop policy if exists "sale_items_update_own" on public.sale_items;
 drop policy if exists "sale_items_delete_own" on public.sale_items;
+
+drop policy if exists "combos_select_own" on public.combos;
+drop policy if exists "combos_insert_own" on public.combos;
+drop policy if exists "combos_update_own" on public.combos;
+drop policy if exists "combos_delete_own" on public.combos;
+
+drop policy if exists "combo_items_select_own" on public.combo_items;
+drop policy if exists "combo_items_insert_own" on public.combo_items;
+drop policy if exists "combo_items_update_own" on public.combo_items;
+drop policy if exists "combo_items_delete_own" on public.combo_items;
 
 create policy "products_select_own" on public.products
 for select using (auth.uid() = owner_id);
@@ -160,11 +192,67 @@ for delete using (
   )
 );
 
+create policy "combos_select_own" on public.combos
+for select using (auth.uid() = owner_id);
+
+create policy "combos_insert_own" on public.combos
+for insert with check (auth.uid() = owner_id);
+
+create policy "combos_update_own" on public.combos
+for update using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+create policy "combos_delete_own" on public.combos
+for delete using (auth.uid() = owner_id);
+
+create policy "combo_items_select_own" on public.combo_items
+for select using (
+  exists (
+    select 1 from public.combos c
+    where c.id = combo_items.combo_id
+      and c.owner_id = auth.uid()
+  )
+);
+
+create policy "combo_items_insert_own" on public.combo_items
+for insert with check (
+  exists (
+    select 1 from public.combos c
+    where c.id = combo_items.combo_id
+      and c.owner_id = auth.uid()
+  )
+);
+
+create policy "combo_items_update_own" on public.combo_items
+for update using (
+  exists (
+    select 1 from public.combos c
+    where c.id = combo_items.combo_id
+      and c.owner_id = auth.uid()
+  )
+) with check (
+  exists (
+    select 1 from public.combos c
+    where c.id = combo_items.combo_id
+      and c.owner_id = auth.uid()
+  )
+);
+
+create policy "combo_items_delete_own" on public.combo_items
+for delete using (
+  exists (
+    select 1 from public.combos c
+    where c.id = combo_items.combo_id
+      and c.owner_id = auth.uid()
+  )
+);
+
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on table public.products to authenticated;
 grant select, insert, update, delete on table public.clients to authenticated;
 grant select, insert, update, delete on table public.sales to authenticated;
 grant select, insert, update, delete on table public.sale_items to authenticated;
+grant select, insert, update, delete on table public.combos to authenticated;
+grant select, insert, update, delete on table public.combo_items to authenticated;
 
 alter default privileges in schema public
 grant select, insert, update, delete on tables to authenticated;
@@ -179,6 +267,9 @@ alter table if exists public.products
 alter column stock_min type numeric(12,3) using stock_min::numeric;
 
 alter table if exists public.sale_items
+alter column quantity type numeric(12,3) using quantity::numeric;
+
+alter table if exists public.combo_items
 alter column quantity type numeric(12,3) using quantity::numeric;
 
 select pg_notify('pgrst', 'reload schema');

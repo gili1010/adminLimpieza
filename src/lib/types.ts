@@ -10,6 +10,23 @@ export type Product = {
   created_at: string;
 };
 
+export type Combo = {
+  id: string;
+  owner_id: string;
+  name: string;
+  sale_price: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type ComboItem = {
+  id: string;
+  combo_id: string;
+  product_id: string;
+  quantity: number;
+  created_at: string;
+};
+
 export type Client = {
   id: string;
   owner_id: string;
@@ -49,4 +66,7 @@ export type CartItem = {
   quantity: number;
   unit_sale_price: number;
   unit_cost_price: number;
+  line_total: number;
+  source_type: "product" | "combo";
+  source_name: string | null;
 };
