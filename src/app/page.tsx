@@ -12,7 +12,12 @@ import {
 } from "recharts";
 import {
   format,
+  eachWeekOfInterval,
+  endOfWeek,
+  endOfMonth,
+  getDaysInMonth,
   parseISO,
+  subMonths,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
@@ -22,8 +27,18 @@ import autoTable from "jspdf-autotable";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CartItem, Client, Combo, ComboItem, Product, Sale, SaleItem } from "@/lib/types";
 
-type View = "dashboard" | "ventas" | "productos" | "clientes";
+type View = "dashboard" | "ventas" | "productos" | "analisis" | "clientes";
 type Range = "day" | "week" | "month" | "custom";
+
+type AnalyticsWeekRow = {
+  weekStart: string;
+  weekEnd: string;
+  label: string;
+  quantity: number;
+  revenue: number;
+  profit: number;
+  isCompleted: boolean;
+};
 
 const getPresetRangeDates = (selectedRange: Exclude<Range, "custom">) => {
   const now = new Date();
@@ -51,6 +66,12 @@ const formatQuantity = (value: number) =>
   new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
+  }).format(value);
+
+const formatPercentage = (value: number) =>
+  new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 
 const roundToTwo = (value: number) => Math.round(value * 100) / 100;
@@ -120,6 +141,12 @@ export default function Home() {
   const [historyEndDate, setHistoryEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [expandedSaleIds, setExpandedSaleIds] = useState<string[]>([]);
   const [isExportingProductsPdf, setIsExportingProductsPdf] = useState(false);
+  const [analysisProductId, setAnalysisProductId] = useState("");
+  const [analysisProductSearch, setAnalysisProductSearch] = useState("");
+  const [analysisProductDropdownOpen, setAnalysisProductDropdownOpen] = useState(false);
+  const [analysisAutoSelectDone, setAnalysisAutoSelectDone] = useState(false);
+  const [analysisMonth, setAnalysisMonth] = useState(() => format(new Date(), "yyyy-MM"));
+  const [analysisDropThreshold, setAnalysisDropThreshold] = useState("20");
 
   useEffect(() => {
     const selectedProduct = products.find((product) => product.id === selectedProductId);
@@ -150,6 +177,20 @@ export default function Home() {
   useEffect(() => {
     if (!selectedComboId) setComboSearch("");
   }, [selectedComboId]);
+
+  useEffect(() => {
+    if (analysisAutoSelectDone || analysisProductId || products.length === 0) return;
+
+    const firstActiveProduct = [...products]
+      .filter((product) => product.is_active)
+      .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))[0];
+
+    if (firstActiveProduct) {
+      setAnalysisProductId(firstActiveProduct.id);
+      setAnalysisProductSearch(firstActiveProduct.name);
+    }
+    setAnalysisAutoSelectDone(true);
+  }, [analysisAutoSelectDone, analysisProductId, products]);
 
   const filteredActiveProducts = useMemo(() => {
     const active = products.filter((p) => p.is_active);
@@ -210,6 +251,8 @@ export default function Home() {
     () => new Map(clients.map((client) => [client.id, client])),
     [clients]
   );
+
+  const salesById = useMemo(() => new Map(sales.map((sale) => [sale.id, sale])), [sales]);
 
   const saleItemsBySaleId = useMemo(() => {
     const map = new Map<string, SaleItem[]>();
@@ -1488,6 +1531,467 @@ export default function Home() {
     return [...stats.values()].sort((a, b) => b.purchases - a.purchases || b.totalAmount - a.totalAmount);
   }, [clientsById, sales]);
 
+  const analysisProducts = useMemo(() => {
+    return [...products]
+      .filter((product) => product.is_active)
+      .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+  }, [products]);
+
+  const filteredAnalysisProducts = useMemo(() => {
+    if (!analysisProductSearch.trim()) return analysisProducts;
+
+    const normalizedSearch = analysisProductSearch.trim().toLowerCase();
+    return analysisProducts.filter((product) =>
+      product.name.toLowerCase().includes(normalizedSearch)
+    );
+  }, [analysisProductSearch, analysisProducts]);
+
+  const analysisMonthlySummary = useMemo(() => {
+    if (!analysisMonth) return [];
+
+    const monthStart = parseISO(`${analysisMonth}-01T00:00:00`);
+    const monthEnd = endOfMonth(monthStart);
+
+    const summaryByProduct = new Map<
+      string,
+      { productId: string; productName: string; quantity: number; revenue: number; profit: number }
+    >();
+
+    saleItems.forEach((item) => {
+      const sale = salesById.get(item.sale_id);
+      if (!sale) return;
+
+      const soldAt = parseISO(sale.sold_at);
+      if (soldAt < monthStart || soldAt > monthEnd) return;
+
+      const product = productsById.get(item.product_id);
+      const current = summaryByProduct.get(item.product_id) ?? {
+        productId: item.product_id,
+        productName: product?.name ?? "Producto",
+        quantity: 0,
+        revenue: 0,
+        profit: 0,
+      };
+
+      current.quantity += Number(item.quantity);
+      current.revenue += Number(item.line_total);
+      current.profit += Number(item.line_profit);
+
+      summaryByProduct.set(item.product_id, current);
+    });
+
+    return [...summaryByProduct.values()].sort((a, b) => b.quantity - a.quantity);
+  }, [analysisMonth, productsById, saleItems, salesById]);
+
+  const analysisWeekOverWeekByProduct = useMemo(() => {
+    const result = new Map<
+      string,
+      {
+        currentQuantity: number;
+        previousQuantity: number;
+        variationPercent: number | null;
+        trend: "up" | "down" | "flat" | "new" | "none";
+      }
+    >();
+
+    if (!analysisMonth || analysisMonthlySummary.length === 0) return result;
+
+    const today = new Date();
+    const monthStart = parseISO(`${analysisMonth}-01T00:00:00`);
+    const selectedMonthKey = format(monthStart, "yyyy-MM");
+    const currentMonthKey = format(today, "yyyy-MM");
+
+    if (selectedMonthKey > currentMonthKey) return result;
+
+    const referenceDate =
+      selectedMonthKey === currentMonthKey
+        ? today
+        : endOfMonth(monthStart);
+
+    const currentWeekStart = startOfWeek(referenceDate, { weekStartsOn: 1 });
+    const currentWeekEnd = new Date(referenceDate);
+    currentWeekEnd.setHours(23, 59, 59, 999);
+
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+    previousWeekStart.setHours(0, 0, 0, 0);
+
+    const elapsedDays = Math.floor(
+      (currentWeekEnd.getTime() - currentWeekStart.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+
+    const previousWeekEnd = new Date(previousWeekStart);
+    previousWeekEnd.setDate(previousWeekEnd.getDate() + elapsedDays - 1);
+    previousWeekEnd.setHours(23, 59, 59, 999);
+
+    const currentByProduct = new Map<string, number>();
+    const previousByProduct = new Map<string, number>();
+
+    saleItems.forEach((item) => {
+      const sale = salesById.get(item.sale_id);
+      if (!sale) return;
+
+      const soldAt = parseISO(sale.sold_at);
+
+      if (soldAt >= currentWeekStart && soldAt <= currentWeekEnd) {
+        currentByProduct.set(
+          item.product_id,
+          (currentByProduct.get(item.product_id) ?? 0) + Number(item.quantity)
+        );
+      }
+
+      if (soldAt >= previousWeekStart && soldAt <= previousWeekEnd) {
+        previousByProduct.set(
+          item.product_id,
+          (previousByProduct.get(item.product_id) ?? 0) + Number(item.quantity)
+        );
+      }
+    });
+
+    analysisMonthlySummary.forEach((row) => {
+      const currentQuantity = currentByProduct.get(row.productId) ?? 0;
+      const previousQuantity = previousByProduct.get(row.productId) ?? 0;
+
+      if (previousQuantity <= 0 && currentQuantity <= 0) {
+        result.set(row.productId, {
+          currentQuantity,
+          previousQuantity,
+          variationPercent: null,
+          trend: "none",
+        });
+        return;
+      }
+
+      if (previousQuantity <= 0 && currentQuantity > 0) {
+        result.set(row.productId, {
+          currentQuantity,
+          previousQuantity,
+          variationPercent: null,
+          trend: "new",
+        });
+        return;
+      }
+
+      const variationPercent = ((currentQuantity - previousQuantity) / previousQuantity) * 100;
+
+      result.set(row.productId, {
+        currentQuantity,
+        previousQuantity,
+        variationPercent,
+        trend:
+          variationPercent > 0
+            ? "up"
+            : variationPercent < 0
+              ? "down"
+              : "flat",
+      });
+    });
+
+    return result;
+  }, [analysisMonth, analysisMonthlySummary, saleItems, salesById]);
+
+  const analysisMonthOverMonthByProduct = useMemo(() => {
+    const result = new Map<
+      string,
+      {
+        currentQuantity: number;
+        previousQuantity: number;
+        variationPercent: number | null;
+        trend: "up" | "down" | "flat" | "new" | "none";
+      }
+    >();
+
+    if (!analysisMonth || analysisMonthlySummary.length === 0) return result;
+
+    const today = new Date();
+    const monthStart = parseISO(`${analysisMonth}-01T00:00:00`);
+    const selectedMonthKey = format(monthStart, "yyyy-MM");
+    const currentMonthKey = format(today, "yyyy-MM");
+
+    if (selectedMonthKey > currentMonthKey) return result;
+
+    const referenceDay =
+      selectedMonthKey === currentMonthKey
+        ? today.getDate()
+        : getDaysInMonth(monthStart);
+
+    const selectedCutoffDay = Math.min(referenceDay, getDaysInMonth(monthStart));
+
+    const currentPeriodStart = new Date(monthStart);
+    currentPeriodStart.setHours(0, 0, 0, 0);
+    const currentPeriodEnd = new Date(monthStart);
+    currentPeriodEnd.setDate(selectedCutoffDay);
+    currentPeriodEnd.setHours(23, 59, 59, 999);
+
+    const previousMonthStart = startOfMonth(subMonths(monthStart, 1));
+    const previousCutoffDay = Math.min(referenceDay, getDaysInMonth(previousMonthStart));
+    const previousPeriodStart = new Date(previousMonthStart);
+    previousPeriodStart.setHours(0, 0, 0, 0);
+    const previousPeriodEnd = new Date(previousMonthStart);
+    previousPeriodEnd.setDate(previousCutoffDay);
+    previousPeriodEnd.setHours(23, 59, 59, 999);
+
+    const currentByProduct = new Map<string, number>();
+    const previousByProduct = new Map<string, number>();
+
+    saleItems.forEach((item) => {
+      const sale = salesById.get(item.sale_id);
+      if (!sale) return;
+
+      const soldAt = parseISO(sale.sold_at);
+
+      if (soldAt >= currentPeriodStart && soldAt <= currentPeriodEnd) {
+        currentByProduct.set(
+          item.product_id,
+          (currentByProduct.get(item.product_id) ?? 0) + Number(item.quantity)
+        );
+      }
+
+      if (soldAt >= previousPeriodStart && soldAt <= previousPeriodEnd) {
+        previousByProduct.set(
+          item.product_id,
+          (previousByProduct.get(item.product_id) ?? 0) + Number(item.quantity)
+        );
+      }
+    });
+
+    analysisMonthlySummary.forEach((row) => {
+      const currentQuantity = currentByProduct.get(row.productId) ?? 0;
+      const previousQuantity = previousByProduct.get(row.productId) ?? 0;
+
+      if (previousQuantity <= 0 && currentQuantity <= 0) {
+        result.set(row.productId, {
+          currentQuantity,
+          previousQuantity,
+          variationPercent: null,
+          trend: "none",
+        });
+        return;
+      }
+
+      if (previousQuantity <= 0 && currentQuantity > 0) {
+        result.set(row.productId, {
+          currentQuantity,
+          previousQuantity,
+          variationPercent: null,
+          trend: "new",
+        });
+        return;
+      }
+
+      const variationPercent = ((currentQuantity - previousQuantity) / previousQuantity) * 100;
+
+      result.set(row.productId, {
+        currentQuantity,
+        previousQuantity,
+        variationPercent,
+        trend:
+          variationPercent > 0
+            ? "up"
+            : variationPercent < 0
+              ? "down"
+              : "flat",
+      });
+    });
+
+    return result;
+  }, [analysisMonth, analysisMonthlySummary, saleItems, salesById]);
+
+  const analysisSelectedProductName = useMemo(() => {
+    return productsById.get(analysisProductId)?.name ?? "Producto";
+  }, [analysisProductId, productsById]);
+
+  const analysisSelectedProductMonthlyTotals = useMemo(() => {
+    const row = analysisMonthlySummary.find((item) => item.productId === analysisProductId);
+    return {
+      quantity: row?.quantity ?? 0,
+      revenue: row?.revenue ?? 0,
+      profit: row?.profit ?? 0,
+    };
+  }, [analysisMonthlySummary, analysisProductId]);
+
+  const analysisWeeklyData = useMemo(() => {
+    if (!analysisProductId || !analysisMonth) return [] as AnalyticsWeekRow[];
+
+    const monthStart = parseISO(`${analysisMonth}-01T00:00:00`);
+    const monthEnd = endOfMonth(monthStart);
+    const intervalStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const intervalEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const today = new Date();
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59, 999);
+    const currentMonthKey = format(today, "yyyy-MM");
+    const selectedMonthKey = format(monthStart, "yyyy-MM");
+
+    const selectedMonthIsPast = selectedMonthKey < currentMonthKey;
+    const selectedMonthIsCurrent = selectedMonthKey === currentMonthKey;
+
+    const weekStarts = eachWeekOfInterval(
+      { start: intervalStart, end: intervalEnd },
+      { weekStartsOn: 1 }
+    );
+
+    const weekRows = weekStarts.map((weekStart, index) => {
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      const isCompleted = selectedMonthIsPast
+        ? true
+        : selectedMonthIsCurrent
+          ? weekEnd <= endOfToday
+          : false;
+
+      return {
+        weekStart: format(weekStart, "yyyy-MM-dd"),
+        weekEnd: format(weekEnd, "yyyy-MM-dd"),
+        label: `Semana ${index + 1} (${format(weekStart, "dd/MM")} - ${format(weekEnd, "dd/MM")})`,
+        quantity: 0,
+        revenue: 0,
+        profit: 0,
+        isCompleted,
+      };
+    });
+
+    const weekIndexByStart = new Map(
+      weekRows.map((row, index) => [row.weekStart, index] as const)
+    );
+
+    saleItems.forEach((item) => {
+      if (item.product_id !== analysisProductId) return;
+
+      const sale = salesById.get(item.sale_id);
+      if (!sale) return;
+
+      const soldAt = parseISO(sale.sold_at);
+      if (soldAt < intervalStart || soldAt > intervalEnd) return;
+
+      const weekStartKey = format(startOfWeek(soldAt, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const rowIndex = weekIndexByStart.get(weekStartKey);
+      if (rowIndex === undefined) return;
+
+      weekRows[rowIndex].quantity += Number(item.quantity);
+      weekRows[rowIndex].revenue += Number(item.line_total);
+      weekRows[rowIndex].profit += Number(item.line_profit);
+    });
+
+    return weekRows;
+  }, [analysisMonth, analysisProductId, saleItems, salesById]);
+
+  const analysisSummary = useMemo(() => {
+    const completedWeeks = analysisWeeklyData.filter((row) => row.isCompleted);
+    const quantityMonth = analysisSelectedProductMonthlyTotals.quantity;
+    const revenueMonth = analysisSelectedProductMonthlyTotals.revenue;
+    const profitMonth = analysisSelectedProductMonthlyTotals.profit;
+    const maxWeeklyQuantity = analysisWeeklyData.reduce(
+      (max, row) => (row.quantity > max ? row.quantity : max),
+      0
+    );
+    const quantityCompleted = completedWeeks.reduce((acc, row) => acc + row.quantity, 0);
+    const avgWeeklyQuantity = completedWeeks.length
+      ? quantityCompleted / completedWeeks.length
+      : 0;
+
+    return {
+      quantityMonth,
+      revenueMonth,
+      profitMonth,
+      maxWeeklyQuantity,
+      avgWeeklyQuantity,
+      completedWeeksCount: completedWeeks.length,
+    };
+  }, [analysisSelectedProductMonthlyTotals, analysisWeeklyData]);
+
+  const analysisPreviousWeeksAverage = useMemo(() => {
+    if (!analysisProductId || !analysisMonth) return 0;
+
+    const monthStart = parseISO(`${analysisMonth}-01T00:00:00`);
+    const fromDate = new Date(monthStart);
+    fromDate.setDate(fromDate.getDate() - 56);
+
+    const weekMap = new Map<string, number>();
+
+    saleItems.forEach((item) => {
+      if (item.product_id !== analysisProductId) return;
+
+      const sale = salesById.get(item.sale_id);
+      if (!sale) return;
+
+      const soldAt = parseISO(sale.sold_at);
+      if (soldAt >= monthStart || soldAt < fromDate) return;
+
+      const weekStart = format(startOfWeek(soldAt, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      weekMap.set(weekStart, (weekMap.get(weekStart) ?? 0) + Number(item.quantity));
+    });
+
+    const previousWeeks = [...weekMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, quantity]) => quantity);
+
+    const sample = previousWeeks.slice(-4);
+    if (sample.length === 0) return 0;
+
+    return sample.reduce((acc, quantity) => acc + quantity, 0) / sample.length;
+  }, [analysisMonth, analysisProductId, saleItems, salesById]);
+
+  const analysisReferenceAverage = useMemo(() => {
+    const completedWeeksInMonth = analysisWeeklyData.filter((week) => week.isCompleted);
+    if (completedWeeksInMonth.length >= 2) {
+      const total = completedWeeksInMonth.reduce((acc, week) => acc + week.quantity, 0);
+      return total / completedWeeksInMonth.length;
+    }
+
+    return analysisPreviousWeeksAverage;
+  }, [analysisPreviousWeeksAverage, analysisWeeklyData]);
+
+  const analysisDropThresholdValue = useMemo(() => {
+    const parsed = Number(analysisDropThreshold);
+    if (Number.isNaN(parsed)) return 0;
+    return Math.max(0, Math.min(100, parsed));
+  }, [analysisDropThreshold]);
+
+  const analysisWeekPerformance = useMemo(() => {
+    const avg = analysisReferenceAverage;
+    return analysisWeeklyData
+      .filter((week) => week.isCompleted)
+      .map((week) => {
+      const dropPercent = avg > 0 ? ((avg - week.quantity) / avg) * 100 : 0;
+      const belowAverage = avg > 0 && week.quantity < avg;
+      const weakByThreshold = avg > 0 && dropPercent >= analysisDropThresholdValue;
+
+      return {
+        ...week,
+        dropPercent,
+        belowAverage,
+        weakByThreshold,
+      };
+    });
+  }, [analysisDropThresholdValue, analysisReferenceAverage, analysisWeeklyData]);
+
+  const analysisAlerts = useMemo(() => {
+    const weakWeeks = analysisWeekPerformance.filter((week) => week.weakByThreshold);
+    const latestWeakWeek = weakWeeks.length > 0 ? weakWeeks[weakWeeks.length - 1] : null;
+
+    let twoConsecutiveBelowAverage = false;
+    let consecutiveWeeksLabel = "";
+
+    for (let index = 1; index < analysisWeekPerformance.length; index += 1) {
+      const prev = analysisWeekPerformance[index - 1];
+      const current = analysisWeekPerformance[index];
+
+      if (prev.belowAverage && current.belowAverage) {
+        twoConsecutiveBelowAverage = true;
+        consecutiveWeeksLabel = `${prev.label} y ${current.label}`;
+        break;
+      }
+    }
+
+    return {
+      latestWeakWeek,
+      twoConsecutiveBelowAverage,
+      consecutiveWeeksLabel,
+    };
+  }, [analysisWeekPerformance]);
+
   if (!supabase) {
     return (
       <main className="min-h-screen bg-zinc-100 p-6 text-zinc-900">
@@ -1621,6 +2125,16 @@ export default function Home() {
               }`}
             >
               Productos
+            </button>
+            <button
+              onClick={() => setActiveView("analisis")}
+              className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
+                activeView === "analisis"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Analisis
             </button>
             <button
               onClick={() => setActiveView("clientes")}
@@ -2357,8 +2871,86 @@ export default function Home() {
           </section>
         )}
 
-        {activeView === "productos" && (
+        {activeView === "analisis" && (
           <section className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="grid flex-1 min-w-[220px] gap-1.5 text-sm">
+                  <span className="font-medium text-slate-600">Producto</span>
+                  <div className="relative">
+                    <input
+                      className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={analysisProductSearch}
+                      onChange={(event) => {
+                        setAnalysisProductSearch(event.target.value);
+                        setAnalysisProductId("");
+                        setAnalysisProductDropdownOpen(true);
+                      }}
+                      onFocus={() => setAnalysisProductDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setAnalysisProductDropdownOpen(false), 150)}
+                      placeholder="Buscar producto..."
+                    />
+                    {analysisProductSearch && (
+                      <button
+                        type="button"
+                        onMouseDown={() => {
+                          setAnalysisProductSearch("");
+                          setAnalysisProductId("");
+                          setAnalysisProductDropdownOpen(false);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                    {analysisProductDropdownOpen && filteredAnalysisProducts.length > 0 && (
+                      <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {filteredAnalysisProducts.map((product) => (
+                          <li
+                            key={product.id}
+                            className="cursor-pointer px-3 py-2.5 text-sm transition hover:bg-indigo-50 hover:text-indigo-700"
+                            onMouseDown={() => {
+                              setAnalysisProductId(product.id);
+                              setAnalysisProductSearch(product.name);
+                              setAnalysisProductDropdownOpen(false);
+                            }}
+                          >
+                            <span className="font-medium">{product.name}</span>
+                            <span className="ml-2 text-xs text-slate-400">
+                              Stock {formatQuantity(Number(product.stock))}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </label>
+
+                <label className="grid min-w-[180px] gap-1.5 text-sm">
+                  <span className="font-medium text-slate-600">Mes</span>
+                  <input
+                    type="month"
+                    value={analysisMonth}
+                    onChange={(event) => setAnalysisMonth(event.target.value)}
+                    className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                </label>
+
+                <label className="grid min-w-[140px] gap-1.5 text-sm">
+                  <span className="font-medium text-slate-600">X% semana floja</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={analysisDropThreshold}
+                    onChange={(event) => setAnalysisDropThreshold(event.target.value)}
+                    className="h-10 rounded-lg border border-slate-300 px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Mercaderia a costo</p>
@@ -2370,6 +2962,233 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-violet-500">Cantidad del mes</p>
+                <p className="mt-2 text-2xl font-bold text-violet-700">{formatQuantity(analysisSummary.quantityMonth)}</p>
+                <p className="mt-1 text-xs text-slate-400">Litros o unidades segun producto</p>
+              </div>
+              <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-500">Promedio semanal</p>
+                <p className="mt-2 text-2xl font-bold text-sky-700">{formatQuantity(analysisReferenceAverage)}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {analysisSummary.completedWeeksCount >= 2
+                    ? "Base del mes actual (semanas cerradas)"
+                    : "Base historica (ultimas semanas del mes anterior)"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Minimo sugerido semanal</p>
+                <p className="mt-2 text-2xl font-bold text-amber-700">{formatQuantity(analysisSummary.maxWeeklyQuantity)}</p>
+                <p className="mt-1 text-xs text-slate-400">Pico semanal vendido en el mes</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">Ingreso mensual</p>
+                <p className="mt-2 text-2xl font-bold text-emerald-700">{formatCurrency(analysisSummary.revenueMonth)}</p>
+                <p className="mt-1 text-xs text-slate-400">Ganancia: {formatCurrency(analysisSummary.profitMonth)}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className={`rounded-2xl border p-4 shadow-sm ${
+                analysisAlerts.latestWeakWeek
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-emerald-200 bg-emerald-50"
+              }`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Producto en semana floja
+                </p>
+                {analysisAlerts.latestWeakWeek ? (
+                  <p className="mt-2 text-sm font-semibold text-amber-800">
+                    {analysisSelectedProductName} cayo {formatQuantity(analysisAlerts.latestWeakWeek.dropPercent)}% en {analysisAlerts.latestWeakWeek.label} vs promedio semanal.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm font-semibold text-emerald-800">
+                    Sin alerta: el producto no supera el umbral de caida de {formatQuantity(analysisDropThresholdValue)}%.
+                  </p>
+                )}
+              </div>
+
+              <div className={`rounded-2xl border p-4 shadow-sm ${
+                analysisAlerts.twoConsecutiveBelowAverage
+                  ? "border-red-200 bg-red-50"
+                  : "border-slate-200 bg-white"
+              }`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Sugerencia de oferta
+                </p>
+                {analysisAlerts.twoConsecutiveBelowAverage ? (
+                  <p className="mt-2 text-sm font-semibold text-red-700">
+                    Detectadas 2 semanas seguidas por debajo del promedio ({analysisAlerts.consecutiveWeeksLabel}). Conviene impulsar oferta para recuperar traccion.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm font-semibold text-slate-700">
+                    Sin sugerencia de oferta: no hay 2 semanas consecutivas por debajo del promedio.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-slate-700">
+                  Comparativo semanal de {analysisSelectedProductName}
+                </h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                  Semana 1 vs 2 vs 3 vs 4
+                </span>
+              </div>
+
+              <div className="mt-4 h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analysisWeeklyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      angle={-12}
+                      textAnchor="end"
+                      height={70}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || payload.length === 0) return null;
+
+                        const row = payload[0].payload as AnalyticsWeekRow;
+
+                        return (
+                          <div
+                            className="rounded-xl border border-slate-200 bg-white p-3 shadow"
+                            style={{ boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.07)" }}
+                          >
+                            <p className="text-sm font-semibold text-slate-800">{String(label)}</p>
+                            <p className="mt-1 text-sm text-indigo-600">
+                              Cantidad: {formatQuantity(row.quantity)} u/l
+                            </p>
+                            <p className="mt-1 text-sm text-emerald-600">
+                              Ingreso: {formatCurrency(row.revenue)}
+                            </p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="quantity" name="Cantidad" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📋</span>
+                <h2 className="text-sm font-bold text-slate-700">Productos vendidos del mes</h2>
+              </div>
+              <div className="mt-4 overflow-auto">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-left">
+                      <th className="rounded-l-lg py-2.5 pl-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Producto</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Cantidad (u/l)</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Ingresos</th>
+                      <th className="py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Ganancia</th>
+                      <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Crec./Decr. semanal</th>
+                      <th className="rounded-r-lg py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Crec./Decr. mensual</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analysisMonthlySummary.length === 0 && (
+                      <tr>
+                        <td className="py-5 text-center text-slate-400" colSpan={6}>
+                          No hay ventas para el mes seleccionado.
+                        </td>
+                      </tr>
+                    )}
+                    {analysisMonthlySummary.map((row) => {
+                      const weeklyVariation = analysisWeekOverWeekByProduct.get(row.productId);
+                      const monthlyVariation = analysisMonthOverMonthByProduct.get(row.productId);
+
+                      return (
+                        <tr key={row.productId} className="border-b border-slate-100 transition hover:bg-slate-50">
+                          <td className="py-2.5 pl-3 font-semibold text-slate-800">{row.productName}</td>
+                          <td className="py-2.5 text-violet-700">{formatQuantity(row.quantity)}</td>
+                          <td className="py-2.5 text-blue-700">{formatCurrency(row.revenue)}</td>
+                          <td className="py-2.5 font-semibold text-emerald-700">{formatCurrency(row.profit)}</td>
+                          <td className="py-2.5 pr-3">
+                            {!weeklyVariation || weeklyVariation.trend === "none" ? (
+                              <span className="text-xs font-semibold text-slate-400">Sin datos</span>
+                            ) : weeklyVariation.trend === "new" ? (
+                              <div>
+                                <p className="text-xs font-semibold text-emerald-700">Nuevo crecimiento</p>
+                                <p className="text-[11px] text-slate-500">
+                                  {formatQuantity(weeklyVariation.currentQuantity)} u/l vs 0 u/l
+                                </p>
+                              </div>
+                            ) : (
+                              <div>
+                                <p
+                                  className={`text-xs font-bold ${
+                                    weeklyVariation.trend === "up"
+                                      ? "text-emerald-700"
+                                      : weeklyVariation.trend === "down"
+                                        ? "text-red-700"
+                                        : "text-slate-600"
+                                  }`}
+                                >
+                                  {weeklyVariation.variationPercent && weeklyVariation.variationPercent > 0 ? "+" : ""}
+                                  {formatPercentage(weeklyVariation.variationPercent ?? 0)}%
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {formatQuantity(weeklyVariation.currentQuantity)} u/l vs {formatQuantity(weeklyVariation.previousQuantity)} u/l
+                                </p>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            {!monthlyVariation || monthlyVariation.trend === "none" ? (
+                              <span className="text-xs font-semibold text-slate-400">Sin datos</span>
+                            ) : monthlyVariation.trend === "new" ? (
+                              <div>
+                                <p className="text-xs font-semibold text-emerald-700">Nuevo crecimiento</p>
+                                <p className="text-[11px] text-slate-500">
+                                  {formatQuantity(monthlyVariation.currentQuantity)} u/l vs 0 u/l
+                                </p>
+                              </div>
+                            ) : (
+                              <div>
+                                <p
+                                  className={`text-xs font-bold ${
+                                    monthlyVariation.trend === "up"
+                                      ? "text-emerald-700"
+                                      : monthlyVariation.trend === "down"
+                                        ? "text-red-700"
+                                        : "text-slate-600"
+                                  }`}
+                                >
+                                  {monthlyVariation.variationPercent && monthlyVariation.variationPercent > 0 ? "+" : ""}
+                                  {formatPercentage(monthlyVariation.variationPercent ?? 0)}%
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {formatQuantity(monthlyVariation.currentQuantity)} u/l vs {formatQuantity(monthlyVariation.previousQuantity)} u/l
+                                </p>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeView === "productos" && (
+          <section className="space-y-5">
             <form onSubmit={addProduct} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xl">➕</span>
